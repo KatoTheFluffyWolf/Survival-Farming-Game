@@ -2,13 +2,11 @@
   'use strict';
 
   const TILE = 32;
-  const GRID_W = 32 ;
+  const GRID_W = 32;
   const GRID_H = 16;
   const GAME_W = GRID_W * TILE;
   const GAME_H = GRID_H * TILE;
   
-
-
   class GameScene extends Phaser.Scene {
     constructor() {
       super('GameScene');
@@ -46,27 +44,188 @@
       
 
       
-      this.load.spritesheet('farmer','assets/giong_spritesheet.png',{ frameWidth:94 , frameHeight:293 });    
+      this.load.spritesheet('farmer','assets/giong_spritesheet64.png',{ frameWidth:20.5 , frameHeight:64 });    
       this.load.audio('step',['assets/step.mp3']);
       this.load.image('citadel', 'assets/Hue_Citadel.png'); 
 
-      // Water overlay
-      const w = this.add.graphics();
-      w.fillStyle(0x0000ff, 0.3);
-      w.fillRect(0, 0, TILE, TILE);
-      w.generateTexture('tile-watered', TILE, TILE);
-      w.destroy();
     }
 
     create() {
+      const gameCenterX = GAME_W / 2 - 5; // 480
+      const gameCenterY = GAME_H / 2 - 5; // 256
+
+      this.cameras.main.setZoom(1);          // no zoom
+      this.cameras.main.setScroll(0, 0);  
       this.add.image(0, 0, 'citadel').setOrigin(0);
       
 
       // Farmer
-      // this.farmer = this.physics.add.image(GAME_W / 2, GAME_H / 2, 'farmer');
-      this.farmer = this.physics.add.sprite(GAME_W / 2, GAME_H / 2, 'farmer');
+      this.farmer = this.physics.add.sprite(GAME_W/2 + 25, GAME_H/2 + 100, 'farmer');
       this.farmer.setBounce(0.2);
       this.farmer.setCollideWorldBounds(true);
+      const farmer_height = 64; // The frame height
+      const collision_height = 30; // Make the collision box 10px tall
+      const offset_y = farmer_height - collision_height; // Offset from top of frame
+
+      this.farmer.body.setSize(this.farmer.width, collision_height); 
+
+      this.farmer.body.setOffset(0, offset_y); 
+
+      // base
+      // Game dimensions are available globally or locally via 'this'
+      const rectWidth = 132;
+      const rectHeight = 69;
+
+      // Calculate the top-left (x, y) needed for perfect centering
+      const rectX = gameCenterX - (rectWidth / 2); // 480 - 66 = 414
+      const rectY = gameCenterY - (rectHeight / 2); // 256 - 34.5 = 221.5
+
+      // Initialize the rectangle using the calculated top-left corner
+       this.base = this.add.rectangle(rectX, rectY, rectWidth, rectHeight, 0xff0000)
+      .setOrigin(0, 0) // Key to aligning with physics body
+      .setAlpha(0.5); 
+
+      this.physics.add.existing(this.base, true);
+      this.physics.add.collider(this.farmer, this.base);
+      this.base.body.setSize(this.base.width, this.base.height -20);  
+      this.base.body.setOffset(0, 20);  
+
+
+
+      // Gate
+      const gateWidth = 100;
+      const gateHeight = 70 ;
+      
+      // Calculate the top-left (x, y) needed for perfect centering
+      const gateX = 457;
+      const gateY = 350;
+
+      this.gate = this.add.rectangle(gateX, gateY + 50, gateWidth, gateHeight, 0x0000ff)
+      .setOrigin(0, 0) // Key to aligning with physics body
+      .setAlpha(0.5);
+
+      this.physics.add.existing(this.gate, true);
+      this.physics.add.collider(this.farmer, this.gate);
+      this.gate.body.setSize(this.gate.width, this.gate.height);  
+      this.gate.body.setOffset(0, 20);
+
+      // Walls
+      // Example: Top Wall Re-Revisited (The most stable way)
+      this.walls = this.physics.add.staticGroup();
+
+      // Top Wall
+      this.walls.create(GAME_W / 2, 32, null) 
+          .setDisplaySize(GAME_W, 20) 
+          .setOrigin(0.5, 0) 
+          .refreshBody() 
+          .setAlpha(0.5); 
+      // Bottom Wall
+      this.walls.create(GAME_W / 2, GAME_H - 60, null) 
+          .setDisplaySize(GAME_W, 20) 
+          .setOrigin(0.5, 0) 
+          .refreshBody() 
+          .setAlpha(0.5);
+      // Left Wall
+      this.walls.create(150, GAME_H / 2, null) 
+          .setDisplaySize(20, GAME_H) 
+          .setOrigin(0, 0.5) 
+          .refreshBody() 
+          .setAlpha(0.5);
+      // Right Wall
+      this.walls.create(GAME_W - 155, GAME_H / 2, null) 
+          .setDisplaySize(20, GAME_H) 
+          .setOrigin(1, 0.5) 
+          .refreshBody() 
+          .setAlpha(0.5);
+      this.physics.add.collider(this.farmer, this.walls); 
+
+      //Healing Station
+      const healWidth = 150;
+      const healHeight = 100;
+      
+      // Calculate the top-left (x, y) needed for perfect centering
+      const healX = GAME_W/2 - 5;
+      const healY = 50;
+
+      this.healStation = this.add.rectangle(healX, healY, healWidth, healHeight, 0xffff00)
+      .setOrigin(0.5, 0.5) // Key to aligning with physics body
+      .setAlpha(0.5);
+
+      this.physics.add.existing(this.healStation, true);
+      this.physics.add.collider(this.farmer, this.healStation, () => {
+        this.eatWheat();
+      }, null, this);
+      this.healStation.body.setSize(this.healStation.width, this.healStation.height);  
+      this.healStation.body.setOffset(0, 0);
+
+      //Shop
+      const shopWidth = 25;
+      const shopHeight = 25;
+      
+      // Calculate the top-left (x, y) needed for perfect centering
+      const shopX = GAME_W/2 - 150;
+      const shopY = GAME_H - 180;
+
+      this.shop = this.add.rectangle(shopX, shopY, shopWidth, shopHeight, 0x00ffff)
+      .setOrigin(0.5, 0.5) // Key to aligning with physics body
+      .setAlpha(0.5);
+
+      this.physics.add.existing(this.shop, true);
+      this.physics.add.collider(this.farmer, this.shop);
+      this.shop.body.setSize(this.shop.width, this.shop.height);  
+      this.shop.body.setOffset(0, 0.2
+      );
+
+      // Random Building
+      const buildWidth = 85;
+      const buildHeight = 20;
+      
+      // Calculate the top-left (x, y) needed for perfect centering
+      const buildX = GAME_W/2 + 180;
+      const buildY = GAME_H - 170;
+      
+      this.building = this.add.rectangle(buildX, buildY, buildWidth, buildHeight, 0xff00ff)
+      .setOrigin(0.5, 0.5) // Key to aligning with physics body
+      .setAlpha(0.5);
+      this.physics.add.existing(this.building, true);
+      this.physics.add.collider(this.farmer, this.building);
+      this.building.body.setSize(this.building.width, this.building.height);  
+      this.building.body.setOffset(0, 0.2
+      );
+
+      //Tower 1
+      const tower1Width = 20;
+      const tower1Height = 85;
+      
+      // Calculate the top-left (x, y) needed for perfect centering
+      const tower1X = 180;
+      const tower1Y = GAME_H/2 - 35;
+      
+      this.tower1 = this.add.rectangle(tower1X, tower1Y, tower1Width, tower1Height, 0xffffff)
+      .setOrigin(0.5, 0.5) // Key to aligning with physics body
+      .setAlpha(0.5);
+      this.physics.add.existing(this.tower1, true);
+      this.physics.add.collider(this.farmer, this.tower1);
+      this.tower1.body.setSize(this.tower1.width, this.tower1.height - 20);  
+      this.tower1.body.setOffset(0, 10);
+      
+      //Tower 2
+      const tower2Width = 20;
+      const tower2Height = 85;
+      
+      // Calculate the top-left (x, y) needed for perfect centering
+      const tower2X = GAME_W - 180;
+      const tower2Y = GAME_H/2 - 35;
+      
+      this.tower2 = this.add.rectangle(tower2X, tower2Y, tower2Width, tower2Height, 0x000000  )
+      .setOrigin(0.5, 0.5) // Key to aligning with physics body
+      .setAlpha(0.5);
+      this.physics.add.existing(this.tower2, true);
+      this.physics.add.collider(this.farmer, this.tower2);
+      this.tower2.body.setSize(this.tower2.width, this.tower2.height - 20);  
+      this.tower2.body.setOffset(0, 10);
+
+      // Animations 
       //  Our player animations, turning, walking left and walking right.
       this.anims.create({
         key: 'left',
