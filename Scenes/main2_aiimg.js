@@ -29,6 +29,78 @@
       this.gameOver = false;
 
     }
+    drawHealthBar(x, y, health) {
+    this.healthBar.clear(); // Clear the previous drawings
+
+    const barWidth = 60;
+    const barHeight = 8;
+    const offsetX = -barWidth / 2; // Center the bar above the player
+    const offsetY = -this.farmer.height / 2 - 3; // 10 pixels above the player
+
+    // Calculate the position of the health bar relative to the player
+    const barX = x + offsetX;
+    const barY = y + offsetY;
+
+    // Background bar (always full width)
+    this.healthBar.fillStyle(0x000000, 0.5); // Dark grey, semi-transparent
+    this.healthBar.fillRect(barX, barY, barWidth, barHeight);
+
+    // Foreground health bar
+    // Calculate the width based on current health percentage
+    const currentHealthWidth = (barWidth * health) / this.farmer.maxHealth;
+
+    // Choose color based on health (e.g., green for high, red for low)
+    if (health < 30) {
+        this.healthBar.fillStyle(0xff0000, 1); // Red for low health
+    } else if (health < 60) {
+        this.healthBar.fillStyle(0xffff00, 1); // Yellow for medium health
+    } else {
+        this.healthBar.fillStyle(0x00ff00, 1); // Green for high health
+    }
+    
+    this.healthBar.fillRect(barX, barY, currentHealthWidth, barHeight);
+}
+
+drawBaseHealthBar() {
+      // Draws the Base health bar above the Citadel in World-Space
+      if (!this.baseHealthBar || !this.base) return;
+
+      this.baseHealthBar.clear();
+
+      const barWidth = 150; 
+      const barHeight = 10;
+      
+      // Calculate position relative to the base object (using its center coordinates)
+      const barCenterX = this.base.x; 
+      // barTopY is 10px above the actual top edge of the base
+      const barTopY = this.base.y - (this.base.height / 2) - 10; 
+      
+      const barX = barCenterX - barWidth / 2;
+      const barY = barTopY;
+      
+      // Background (Black)
+      this.baseHealthBar.fillStyle(0x000000, 0.7);
+      this.baseHealthBar.fillRect(barX, barY, barWidth, barHeight);
+
+      // Foreground (Color based on health)
+      const currentHealthWidth = (barWidth * this.base.health) / this.base.maxHealth;
+
+      if (this.base.health < 125) { // 25% of 500
+          this.baseHealthBar.fillStyle(0xff3333, 1); 
+      } else if (this.base.health < 250) { // 50% of 500
+          this.baseHealthBar.fillStyle(0xffaa00, 1); 
+      } else {
+          this.baseHealthBar.fillStyle(0x00ff00, 1); // Green health bar
+      }
+
+      this.baseHealthBar.fillRect(barX, barY, currentHealthWidth, barHeight);
+
+      // Update the label position (World-Space)
+      this.baseHealthText.x = barCenterX;
+      this.baseHealthText.y = barY - 10; 
+      this.baseHealthText.setText(`CITADEL: ${this.base.health}/${this.base.maxHealth}`);
+    }
+
 
     preload() {
       // Ground tile
@@ -63,6 +135,16 @@
       this.farmer = this.physics.add.sprite(GAME_W/2 + 25, GAME_H/2 + 100, 'farmer');
       this.farmer.setBounce(0.2);
       this.farmer.setCollideWorldBounds(true);
+
+      this.farmer.health = 100;
+      this.farmer.maxHealth = 100;
+      this.healthBar = this.add.graphics();
+      this.healthBar.fillStyle(0x00ff00);
+      this.healthBar.fillRect(10, 10, this.farmer.health, 10);
+      this.drawHealthBar(this.farmer.x, this.farmer.y, this.farmer.health);
+
+      this.farmer.lastHitTime = 0; // Timer for damage cooldown
+
       const farmer_height = 64; // The frame height
       const collision_height = 30; // Make the collision box 10px tall
       const offset_y = farmer_height - collision_height; // Offset from top of frame
@@ -77,13 +159,24 @@
       const rectHeight = 69;
 
       // Calculate the top-left (x, y) needed for perfect centering
-      const rectX = gameCenterX - (rectWidth / 2); // 480 - 66 = 414
-      const rectY = gameCenterY - (rectHeight / 2); // 256 - 34.5 = 221.5
+      const rectX = gameCenterX; // 480 - 66 = 414
+      const rectY = gameCenterY;// 256 - 34.5 = 221.5
 
       // Initialize the rectangle using the calculated top-left corner
        this.base = this.add.rectangle(rectX, rectY, rectWidth, rectHeight, 0xff0000)
-      .setOrigin(0, 0) // Key to aligning with physics body
+      .setOrigin(0.5, 0.5) // Key to aligning with physics body
       .setAlpha(0.5); 
+      
+      // Base Health Properties (The new part!)
+      this.base.health = 500;
+      this.base.maxHealth = 500;
+      this.base.lastHitTime = 0;
+
+    // Base Health Bar (HUD)
+    this.baseHealthBar = this.add.graphics().setScrollFactor(0);
+    this.baseHealthText = this.add.text(GAME_W / 2, 30, 'CITADEL HEALTH: 500/500', { 
+        fontFamily: 'monospace', fontSize: '12px', color: '#ffffffff' 
+      }).setOrigin(0.5).setScrollFactor(0);
 
       this.physics.add.existing(this.base, true);
       this.physics.add.collider(this.farmer, this.base);
@@ -102,7 +195,7 @@
 
       this.gate = this.add.rectangle(gateX, gateY + 50, gateWidth, gateHeight, 0x0000ff)
       .setOrigin(0, 0) // Key to aligning with physics body
-      .setAlpha(0.5);
+      .setAlpha(0);
 
       this.physics.add.existing(this.gate, true);
       this.physics.add.collider(this.farmer, this.gate);
@@ -118,25 +211,25 @@
           .setDisplaySize(GAME_W, 20) 
           .setOrigin(0.5, 0) 
           .refreshBody() 
-          .setAlpha(0.5); 
+          .setAlpha(0); 
       // Bottom Wall
       this.walls.create(GAME_W / 2, GAME_H - 60, null) 
           .setDisplaySize(GAME_W, 20) 
           .setOrigin(0.5, 0) 
           .refreshBody() 
-          .setAlpha(0.5);
+          .setAlpha(0);
       // Left Wall
       this.walls.create(150, GAME_H / 2, null) 
           .setDisplaySize(20, GAME_H) 
           .setOrigin(0, 0.5) 
           .refreshBody() 
-          .setAlpha(0.5);
+          .setAlpha(0);
       // Right Wall
       this.walls.create(GAME_W - 155, GAME_H / 2, null) 
           .setDisplaySize(20, GAME_H) 
           .setOrigin(1, 0.5) 
           .refreshBody() 
-          .setAlpha(0.5);
+          .setAlpha(0);
       this.physics.add.collider(this.farmer, this.walls); 
 
       //Healing Station
@@ -149,7 +242,7 @@
 
       this.healStation = this.add.rectangle(healX, healY, healWidth, healHeight, 0xffff00)
       .setOrigin(0.5, 0.5) // Key to aligning with physics body
-      .setAlpha(0.5);
+      .setAlpha(0);
 
       this.physics.add.existing(this.healStation, true);
       this.physics.add.collider(this.farmer, this.healStation, () => {
@@ -168,7 +261,7 @@
 
       this.shop = this.add.rectangle(shopX, shopY, shopWidth, shopHeight, 0x00ffff)
       .setOrigin(0.5, 0.5) // Key to aligning with physics body
-      .setAlpha(0.5);
+      .setAlpha(0);
 
       this.physics.add.existing(this.shop, true);
       this.physics.add.collider(this.farmer, this.shop);
@@ -186,7 +279,7 @@
       
       this.building = this.add.rectangle(buildX, buildY, buildWidth, buildHeight, 0xff00ff)
       .setOrigin(0.5, 0.5) // Key to aligning with physics body
-      .setAlpha(0.5);
+      .setAlpha(0);
       this.physics.add.existing(this.building, true);
       this.physics.add.collider(this.farmer, this.building);
       this.building.body.setSize(this.building.width, this.building.height);  
@@ -203,7 +296,7 @@
       
       this.tower1 = this.add.rectangle(tower1X, tower1Y, tower1Width, tower1Height, 0xffffff)
       .setOrigin(0.5, 0.5) // Key to aligning with physics body
-      .setAlpha(0.5);
+      .setAlpha(0);
       this.physics.add.existing(this.tower1, true);
       this.physics.add.collider(this.farmer, this.tower1);
       this.tower1.body.setSize(this.tower1.width, this.tower1.height - 20);  
@@ -219,11 +312,31 @@
       
       this.tower2 = this.add.rectangle(tower2X, tower2Y, tower2Width, tower2Height, 0x000000  )
       .setOrigin(0.5, 0.5) // Key to aligning with physics body
-      .setAlpha(0.5);
+      .setAlpha(0);
       this.physics.add.existing(this.tower2, true);
       this.physics.add.collider(this.farmer, this.tower2);
       this.tower2.body.setSize(this.tower2.width, this.tower2.height - 20);  
       this.tower2.body.setOffset(0, 10);
+
+      // Enemies group
+      this.enemies = this.physics.add.group();
+      this.spawnPoints = [this.tower1, this.tower2]; // Add more spawn points as needed
+
+      // 2. Set up Collisions (Crucial for physics behavior)
+      this.physics.add.collider(this.enemies, this.walls);
+      this.physics.add.collider(this.enemies, this.enemies); // Enemies bounce off each other
+      this.physics.add.collider(this.enemies, this.gate);
+
+      this.physics.add.overlap(this.base, this.enemies, this.handleBaseDamage, null, this);
+      this.physics.add.overlap(this.farmer, this.enemies, this.handleEnemyTouch, null, this);
+
+      this.time.addEvent({
+        delay: 4000, 
+        callback: this.spawnEnemy,
+        callbackScope: this,
+        loop: true
+      });
+
 
       // Animations 
       //  Our player animations, turning, walking left and walking right.
@@ -247,7 +360,6 @@
         frameRate: 10,
         repeat: -1
       });
-
 
 
       this.anims.create({
@@ -294,15 +406,26 @@
         this.input.keyboard.removeAllListeners();
       });
       // sound
-this.stepSfx = this.sound.add('step', { volume: 0.4 });
+      this.stepSfx = this.sound.add('step', { volume: 0.4 });
 
-// footstep cadence (ms between steps)
-this.stepInterval = 250;       // tweak to taste; lower = faster cadence
-this.stepAccumulator = 0;      // timer accumulator
+      // footstep cadence (ms between steps)
+      this.stepInterval = 250;       // tweak to taste; lower = faster cadence
+      this.stepAccumulator = 0;      // timer accumulator
 
     }
 
     update(time, delta) {
+
+      this.farmerHitTimer += delta;
+      this.drawHealthBar(this.farmer.x, this.farmer.y, this.farmer.health);
+      this.drawBaseHealthBar();
+       // Simple Enemy AI: Make enemies slowly move towards the farmer
+      this.enemies.getChildren().forEach(enemy => {
+        // Note: this.farmer must be initialized as your player sprite
+        this.physics.moveToObject(enemy, this.base, enemy.speed);
+      });
+
+
       if (this.gameOver) return;
       // Movement (costs small energy per tick)
       const vx = (this.cursors.left.isDown || this.keys.A.isDown ? -1 : 0) +
@@ -326,6 +449,7 @@ this.stepAccumulator = 0;      // timer accumulator
               else this.farmer.anims.play('up', true);
             }
             const speedFactor = this.speed / 150; // 150 is your base speed
+
   this.stepAccumulator += delta * speedFactor;
 
   if (this.stepAccumulator >= this.stepInterval) {
@@ -349,12 +473,6 @@ this.stepAccumulator = 0;      // timer accumulator
       const ty = Math.floor(this.farmer.y / TILE);
       this.coordText.setText(`Tile: (${tx}, ${ty})`);
 
-      // Growth timer
-      this.growthTimer += delta;
-      if (this.growthTimer >= 5000) {
-        this.advanceGrowth();
-        this.growthTimer = 0;
-      }
       // Are we moving?
       const moving = (vx !== 0 || vy !== 0) && this.energy > 0;
 
@@ -377,6 +495,83 @@ this.stepAccumulator = 0;      // timer accumulator
 
     }
     
+    handleEnemyTouch(farmer, enemy) {
+ // Damage cooldown: 500ms (0.5 seconds)
+    const damageCooldown = 500; 
+    const currentTime = this.time.now;
+    
+    if (this.gameOver) return;
+
+    // Check if enough time has passed since the last hit
+    if (currentTime > farmer.lastHitTime + damageCooldown) {
+    // 1. Apply Damage
+    farmer.health -= 10;
+    farmer.lastHitTime = currentTime; // Reset the hit timer
+
+    // Visual feedback: Flash the farmer red briefly
+    this.tweens.add({
+    targets: farmer,
+    duration: 100,
+    tint: 0xff0000,
+    yoyo: true,
+    onComplete: () => {
+    farmer.setTint(0xffffff); // Return to normal color
+    }
+    });
+
+    // 2. Update HUD
+    this.refreshHUD();
+
+    // 3. Check for game over
+    if (farmer.health <= 0) {
+    this.triggerGameOver();
+    }
+    }
+    }
+
+
+    handleBaseDamage(base, enemy) {
+    // No need for damage cooldown check now, since the enemy will be destroyed on impact.
+    // If you still want to ensure a single enemy can only hit the base once per lifetime,
+    // you can skip the cooldown check entirely.
+
+    if (this.gameOver) return;
+    
+    // 1. Apply Damage
+    base.health -= 50; // Base takes 50 damage
+    
+    // 2. Destroy the enemy immediately
+    
+
+    // 4. Update HUD
+    this.refreshHUD();
+    enemy.destroy(); // Remove the enemy after it hits the base
+    // 5. Check for game over
+    if (base.health <= 0) {
+        this.triggerGameOver('The Citadel has fallen!');
+    }
+}
+
+
+    spawnEnemy() {
+      if (this.gameOver) return;
+      
+      // Choose a random spawn point
+      const spawnPoint = Phaser.Math.RND.pick(this.spawnPoints);
+      
+      // Use the center of the spawn point's physics body for the spawn location
+      const x = spawnPoint.body.center.x;
+      const y = spawnPoint.body.center.y;
+      
+      // Create the enemy sprite
+      const enemy = this.enemies.create(x, y, 'enemy-placeholder');
+      // Set minimal properties
+      enemy.setCollideWorldBounds(true);
+      enemy.setBounce(0.5); 
+      enemy.speed = 30; // Used for simple AI movement later
+      enemy.lastHitTime = 0; // Timer for damage cooldown
+    }
+
     eatWheat() {
       if (this.gameOver) return;
       if (this.inventory.wheat > 0 && this.energy < 100) {
@@ -385,21 +580,7 @@ this.stepAccumulator = 0;      // timer accumulator
       }
     }
 
-    advanceGrowth() {
-      for (let y = 0; y < GRID_H; y++) {
-        for (let x = 0; x < GRID_W; x++) {
-          const tile = this.grid[y][x];
-          if (tile.crop && tile.crop.watered && tile.crop.stage < 3) {
-            tile.crop.stage++;
-            tile.crop.beginFrame += 2;
-            tile.crop.watered = false;
-            this.crops[y][x].setTexture('wheat', tile.crop.beginFrame);
-            this.waterOverlays[y][x].setVisible(false);
-          }
-        }
-      }
 
-    }
     restartGame() {
       this.scene.restart();
     }
