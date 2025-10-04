@@ -18,7 +18,7 @@
       this.speed = 150;
       this.hud = null;
       this.coordText = null;
-
+      this.isShopping = false; // NEW: Track if the shop UI is open
     }
 
     init() {
@@ -116,7 +116,7 @@ drawBaseHealthBar() {
       
 
       
-      this.load.spritesheet('player','assets/giong_spritesheet64.png',{ frameWidth:20.5 , frameHeight:64 });    
+      this.load.spritesheet('player','assets/giong_spritesheet64.png',{ frameWidth:49, frameHeight:64 });    
       this.load.audio('step',['assets/step.mp3']);
       this.load.image('citadel', 'assets/Hue_Citadel.png'); 
       this.load.image('banhchung', 'assets/banhchung.png'); 
@@ -133,10 +133,10 @@ drawBaseHealthBar() {
       
 
       // player
-      this.player = this.physics.add.sprite(GAME_W/2 + 25, GAME_H/2 + 100, 'player');
+      this.player = this.physics.add.sprite(GAME_W/2, GAME_H/2 + 100, 'player');
       this.player.setBounce(0.2);
       this.player.setCollideWorldBounds(true);
-
+      this.player.setOrigin(0.2, 0.5);
       this.player.health = 100;
       this.player.maxHealth = 100;
       this.healthBar = this.add.graphics();
@@ -150,10 +150,33 @@ drawBaseHealthBar() {
       const collision_height = 30; // Make the collision box 10px tall
       const offset_y = player_height - collision_height; // Offset from top of frame
 
-      this.player.body.setSize(this.player.width, collision_height); 
+      this.player.body.setSize(this.player.width, this.player.height - offset_y); 
 
-      this.player.body.setOffset(0, offset_y); 
+      this.player.body.setOffset(-15, offset_y); 
 
+      this.attackHitboxes = this.physics.add.group(); 
+
+  
+      this.attackCooldown = 500; 
+      this.nextAttackTime = 0;
+      this.playerHitTimer = 0; // Timer for player damage cooldown
+      this.player.facing = 'up';
+
+      this.player.on('animationcomplete', (animation, frame) => {
+    // Only handle the transition for attack animations
+    if (animation.key.startsWith('attack-')) {
+        // Player is done attacking. Determine next animation.
+        
+        // If the player is currently moving, the update loop will handle the walk animation
+        if (this.player.body.velocity.x === 0 && this.player.body.velocity.y === 0) {
+            // Player is standing still, so play the correct idle animation.
+            const idleKey = this.player.facing + '-idle'; // Assuming you have 'right-idle', 'up-idle', etc.
+            this.player.anims.play(idleKey, true);
+        }
+        // If the player is moving, the update loop will immediately pick up the walk animation.
+    }
+});
+    
       // base
       // Game dimensions are available globally or locally via 'this'
       const rectWidth = 132;
@@ -172,17 +195,15 @@ drawBaseHealthBar() {
       this.base.health = 500;
       this.base.maxHealth = 500;
       this.base.lastHitTime = 0;
-
+      this.base.setOrigin(0.5, 0.5);
     // Base Health Bar (HUD)
-    this.baseHealthBar = this.add.graphics().setScrollFactor(0);
-    this.baseHealthText = this.add.text(GAME_W / 2, 30, 'CITADEL HEALTH: 500/500', { 
+      this.baseHealthBar = this.add.graphics().setScrollFactor(0);
+      this.baseHealthText = this.add.text(GAME_W / 2, 30, 'CITADEL HEALTH: 500/500', { 
         fontFamily: 'monospace', fontSize: '12px', color: '#ffffffff' 
       }).setOrigin(0.5).setScrollFactor(0);
 
       this.physics.add.existing(this.base, true);
       this.physics.add.collider(this.player, this.base);
-      this.base.body.setSize(this.base.width, this.base.height -20);  
-      this.base.body.setOffset(0, 20);  
 
 
 
@@ -255,7 +276,8 @@ drawBaseHealthBar() {
       this.healStation.body.setSize(this.healStation.width, this.healStation.height);  
       this.healStation.body.setOffset(0, 0);
 
-      this.add.text(healX, healY, 'Điện Cần Chánh', { fontSize: '20px', fill: '#f1ececff' }).setOrigin(0.5, 1).setDepth(500);
+      this.add.text(healX + 10, healY - 25, 'Điện Cần Chánh (Hồi Máu)', { fontSize: '20px', fill: '#f1ececff' }).setOrigin(0.5, 1).setDepth(500);
+      
       this.healStation.cooldownText = this.add.text(healX, healY + healHeight / 2 + 5, '', { 
           fontSize: '18px', fill: '#f1c40f', backgroundColor: '#34495e' 
       }).setOrigin(0.5, 0).setVisible(false);
@@ -272,12 +294,12 @@ drawBaseHealthBar() {
       .setAlpha(0);
 
       this.physics.add.existing(this.shop, true);
-      this.physics.add.collider(this.player, this.shop, this.openShop,null, this);
+      this.physics.add.collider(this.player, this.shop, null ,null, this);
       this.shop.body.setSize(this.shop.width, this.shop.height);  
       this.shop.body.setOffset(0, 0.2);
 
 
-      this.add.text(shopX + 5, shopY - 20, 'Cửa Hàng', { fontSize: '14px', fill: '#ecf0f1' }).setOrigin(0.5, 1);
+      this.add.text(shopX + 20, shopY - 20, 'Cửa Hàng (E)  ', { fontSize: '14px', fill: '#ecf0f1' }).setOrigin(0.5, 1);
 
        // NEW: Shop UI Group/Container (hidden initially)
       this.shopUI = this.add.container(GAME_W / 2, GAME_H / 2).setScrollFactor(0).setDepth(600).setVisible(false);
@@ -329,9 +351,6 @@ drawBaseHealthBar() {
       .setAlpha(0);
       this.physics.add.existing(this.building, true);
       this.physics.add.collider(this.player, this.building);
-      this.building.body.setSize(this.building.width, this.building.height);  
-      this.building.body.setOffset(0, 0.2
-      );
 
       //Tower 1
       const tower1Width = 20;
@@ -376,7 +395,13 @@ drawBaseHealthBar() {
 
       this.physics.add.overlap(this.base, this.enemies, this.handleBaseDamage, null, this);
       this.physics.add.overlap(this.player, this.enemies, this.handleEnemyTouch, null, this);
-
+      this.physics.add.overlap(
+          this.attackHitboxes, // Object 1: The temporary hitbox
+          this.enemies,        // Object 2: The enemy group
+          this.damageEnemy,    // The function to call on overlap
+          null,                // Optional processCallback (use null)
+          this                 // Context (the scene itself)
+      );
       this.startNextRound();
 
 
@@ -410,7 +435,24 @@ drawBaseHealthBar() {
         frameRate: 10,
         repeat: -1
       });
-
+      this.anims.create({
+        key: 'attack-right',
+        frames: this.anims.generateFrameNumbers('player', { start: 9, end: 11 }),
+        frameRate: 10,
+        repeat: 0
+      });
+      this.anims.create({
+        key: 'attack-left',
+        frames: this.anims.generateFrameNumbers('player', { start: 11, end: 13 }),
+        frameRate: 10,
+        repeat: 0
+      });
+      this.anims.create({
+        key: 'die',
+        frames: this.anims.generateFrameNumbers('player', { start: 13, end: 15 }),
+        frameRate: 10,
+        repeat: 0
+      });
       // Input
       this.cursors = this.input.keyboard.createCursorKeys();
       this.keys = this.input.keyboard.addKeys({
@@ -425,7 +467,21 @@ drawBaseHealthBar() {
               this.restartGame();
           }
       }, this);
+      this.input.keyboard.on('keydown-E', () => {
+    // 1. If currently shopping, always close the shop.
+    if (this.isShopping) {
+        this.closeShop();
+        return;
+    }
+    
+    // 2. If not shopping, attempt to open the shop.
+    // The openShop() function will check the distance.
+    this.openShop();
+    
+}, this);
+
       // HUD
+      this.input.on('pointerdown', this.handleAttackInput, this);
       this.hud = this.add.text(8, 8, '', {
         fontFamily: 'monospace',
         fontSize: '16px',
@@ -494,35 +550,60 @@ drawBaseHealthBar() {
       const vy = (this.cursors.up.isDown || this.keys.W.isDown ? -1 : 0) +
         (this.cursors.down.isDown || this.keys.S.isDown ? 1 : 0);
 
+      const currentAnimKey = this.player.anims.currentAnim ? this.player.anims.currentAnim.key : '';
+      if (currentAnimKey.startsWith('attack-') && this.player.anims.isPlaying) {
+        // We still calculate velocity and apply it to allow movement during attack.
+        const len = Math.hypot(vx, vy);
+        this.player.setVelocity(len ? (vx / len) * this.speed : 0, len ? (vy / len) * this.speed : 0);
+        
+        
+        return; // Exit the loop early to skip all movement animation commands.
+    }
+
       if (this.energy > 0) {
         const len = Math.hypot(vx, vy);
         this.player.setVelocity(len ? (vx / len) * this.speed : 0, len ? (vy / len) * this.speed : 0);
         if (len) {
-          this.player.setVelocity((vx / len) * this.speed, (vy / len) * this.speed);
+    this.player.setVelocity((vx / len) * this.speed, (vy / len) * this.speed);
 
-          if (Math.abs(vx) > Math.abs(vy)) {
-            // Horizontal
-            if (vx > 0) this.player.anims.play('right', true);
-            else this.player.anims.play('left', true);
-          } else {
-            // Vertical
-            if (vy > 0) this.player.anims.play('down', true);
-              else this.player.anims.play('up', true);
-            }
-            const speedFactor = this.speed / 150; // 150 is your base speed
+        // Horizontal
+        if (vx !== 0) {
+    // Horizontal movement exists, prioritize it for facing and animation
+    
+    if (vx > 0) {
+        this.player.anims.play('right', true);
+        this.player.facing = 'right'; 
+    } else {
+        this.player.anims.play('left', true);
+        this.player.facing = 'left';
+    }
 
-      this.stepAccumulator += delta * speedFactor;
+} else if (vy !== 0) {
+    // Only check vertical movement if there is NO horizontal movement (vx is 0)
+    
+    if (vy > 0) {
+        this.player.anims.play('down', true);
+        this.player.facing = 'down'; 
+    } else { 
+        this.player.anims.play('up', true);
+        this.player.facing = 'up';
+    }
+}
+    
+    const speedFactor = this.speed / 150; // 150 is your base speed
 
-      if (this.stepAccumulator >= this.stepInterval) {
+    this.stepAccumulator += delta * speedFactor;
+
+    if (this.stepAccumulator >= this.stepInterval) {
         // rate-limited: fire one footstep and reset timer
         this.stepSfx.play();
         this.stepAccumulator = 0;
-      }
-            } else {
-                this.stepAccumulator = 0;
-              this.player.setVelocity(0, 0);
-              this.player.anims.stop();
-            }
+    }
+} else {
+    this.stepAccumulator = 0;
+    this.player.setVelocity(0, 0);
+    this.player.anims.stop();
+}
           } else {
             // this.player.setVelocity(0, 0); // too tired
 
@@ -553,14 +634,6 @@ drawBaseHealthBar() {
         this.stepAccumulator = 0;
         // (No need to stop the sound since it's a short one-shot)
       }
-
-      if (this.isShopping) {
-        // 1. Check for manual shop exit (E key)
-        if (this.keys.E.isDown) {
-          this.closeShop();
-          return;
-        }
-      }
     }
     
     handleEnemyTouch(player, enemy) {
@@ -637,14 +710,6 @@ drawBaseHealthBar() {
         delay: delay, 
         callback: () => {
             
-            // Check if we've spawned enough
-            if (spawnedCount >= count) {
-                // Remove the timer object completely when spawning finishes!
-                this.roundSpawnTimer.remove(); 
-                this.roundSpawnTimer = null; // Set to null for safety checks
-                return;
-            }
-
             // If the game is over, just remove the timer and exit
             if (this.gameOver) {
                 this.roundSpawnTimer.remove();
@@ -652,8 +717,16 @@ drawBaseHealthBar() {
                 return;
             }
             
+            // 1. Spawning the enemy happens first
             this.createSingleEnemy(); 
             spawnedCount++;
+            
+            if (spawnedCount >= count) {
+                // Remove the timer object completely when spawning finishes!
+                this.roundSpawnTimer.remove(); 
+                this.roundSpawnTimer = null; // ✅ THIS IS WHAT TRIGGERS checkRoundEnd()
+                return; // End the callback
+            }
         },
         callbackScope: this,
         loop: true
@@ -661,23 +734,68 @@ drawBaseHealthBar() {
 }
 
     createSingleEnemy() {
-        if (this.gameOver) return;
+    if (this.gameOver) return;
 
-        // Choose a random spawn point
-        const spawnPoint = Phaser.Math.RND.pick(this.spawnPoints);
+    // Choose a random spawn point
+    const spawnPoint = Phaser.Math.RND.pick(this.spawnPoints);
 
-        // Use the center of the spawn point's physics body for the spawn location
-        const x = spawnPoint.body.center.x;
-        const y = spawnPoint.body.center.y;
+    // Use the center of the spawn point's physics body for the spawn location
+    const x = spawnPoint.body.center.x;
+    const y = spawnPoint.body.center.y;
 
-        // Create the enemy sprite
-        const enemy = this.enemies.create(x, y, 'enemy-placeholder');
-        // Set minimal properties
-        enemy.setCollideWorldBounds(true);
-        enemy.setBounce(0.5); 
-        enemy.speed = 30 + (this.currentRound * 5); // Enemy speed increases each round
-        enemy.lastHitTime = 0; // Timer for damage cooldown
+    // Create the enemy sprite
+    const enemy = this.enemies.create(x, y, 'enemy-placeholder');
+    
+    // Set minimal properties
+    enemy.setCollideWorldBounds(true);
+    enemy.setBounce(0.5); 
+    enemy.speed = 30 + (this.currentRound * 5); // Enemy speed increases each round
+    enemy.lastHitTime = 0; // Timer for damage cooldown
+    
+    // 🟢 ADDED HEALTH PROPERTIES 🟢
+    
+    // 1. Set the initial health (e.g., 1 for a one-hit kill, or more for tougher enemies)
+    enemy.health = 1; 
+    
+    // 2. Critical flag for the damageEnemy() function to prevent multiple hits 
+    // from a single attack hitbox.
+    enemy.hitByAttack = false; 
+}
+
+    damageEnemy(hitbox, enemy) {
+    // 1. Prevents the enemy from taking damage multiple times from the same hitbox
+    if (enemy.hitByAttack) {
+        return;
     }
+
+    // Define the damage to apply (default to 1 if player.attackDamage isn't set)
+    const damageAmount = this.player.attackDamage || 1;
+
+    // Mark the enemy as hit by this specific attack
+    enemy.hitByAttack = true; 
+    
+    enemy.health -= damageAmount; 
+
+    // 3. Visual Feedback (Flash red)
+    enemy.setTint(0xff0000); 
+    this.time.delayedCall(100, () => {
+        if (enemy.active) {
+            enemy.clearTint();
+        }
+    }, [], this);
+
+
+    if (enemy.health <= 0) { 
+        
+        // Destroy the enemy
+        enemy.destroy(); 
+        this.enemiesRemaining--; // DECREMENT THE HUD COUNTER!
+        this.refreshHUD();       // Update the HUD immediately
+
+        this.checkRoundEnd();
+        
+    }
+}
 
     handleHealingCollision(player, healStation) {
     const currentTime = this.time.now;
@@ -722,13 +840,14 @@ drawBaseHealthBar() {
 
     this.currentRound++; // Advance to the next round
     const enemiesToSpawn = this.currentRound * 2;
+    const spawnRate = Math.max(1000, 4000 - (this.currentRound - 1) * 500); // Decrease delay but not below 1 second
     this.enemiesRemaining = enemiesToSpawn;
 
     // Display the round information
     this.displayRoundInfo(`Ải ${this.currentRound} trên ${this.maxRounds}`);
 
     // Start the spawning process
-    this.spawnEnemiesInRound(enemiesToSpawn, 4000); // 4 seconds between spawns
+    this.spawnEnemiesInRound(enemiesToSpawn, spawnRate); // 4 seconds between spawns
 }
 
     displayRoundInfo(message) {
@@ -757,7 +876,7 @@ drawBaseHealthBar() {
     const spawningFinished = this.roundSpawnTimer === null;
     
     // 2. Check if all active enemies are gone
-    const allEnemiesDestroyed = this.enemies.countActive(true) === 0;
+    const allEnemiesDestroyed = this.enemiesRemaining <= 0;
 
     if (spawningFinished && allEnemiesDestroyed) {
         // All enemies for the round are gone!
@@ -796,20 +915,107 @@ drawBaseHealthBar() {
 if (this.stepSfx) this.stepSfx.destroy();
 
     }
-    openShop(player, shop) {
-      // Set a flag indicating the player is currently touching the shop's collider
-      this.shopCollision = true; 
-    
-      // Only open the UI if it's not already visible and the game isn't over
-      if (this.shopUI.visible || this.gameOver) return;
+    performAttack(currentTime) {
+    // 1. Set cooldown
+    this.nextAttackTime = currentTime + this.attackCooldown;
+    if (this.attackSfx) {
+        this.attackSfx.play();
+    }
+    
+    // 🟢 ADDED: Play the attack animation 🟢
+    // Check player's facing direction and play the corresponding animation
+    if (this.player.facing === 'left') {
+        this.player.anims.play('attack-left', true);
+    } else if (this.player.facing === 'right') {
+        this.player.anims.play('attack-right', true);
+    } 
+    // NOTE: You may want to add 'attack-up' and 'attack-down' here if they exist.
+    // If not, the player will stay on the last directional frame, which is usually fine.
+    
+    // 3. Define Hitbox Parameters
+    let hitboxX = this.player.x;
+    let hitboxY = this.player.y;
+    let hitboxW = 40;
+    let hitboxH = 40;
+    
+    // 4. Position the Hitbox based on player.facing
+    switch (this.player.facing) {
+      case 'up':
+        hitboxY -= 20;
+        break;
+      case 'down':
+        hitboxY += 20;
+        break;
+      case 'left':
+        hitboxX -= 20;
+        break;
+      case 'right':
+        hitboxX += 20;
+        break;
+      default:
+    }
+    
+    // 5. Create the VISIBLE Physics Rectangle
+    const hitbox = this.add.rectangle(hitboxX, hitboxY, hitboxW, hitboxH, 0xff00ff).setAlpha(0);
+    
+    // 6. Apply Physics and Add to Group
+    this.physics.add.existing(hitbox);
+    this.attackHitboxes.add(hitbox);
+    
+    hitbox.body.setAllowGravity(false);
+    hitbox.body.setImmovable(true); 
+    hitbox.body.moves = false;
+    
+    // 7. Destroy the hitbox after a very short duration (e.g., 50ms)
+    this.time.delayedCall(50, () => {
+        hitbox.destroy();
+    }, [], this);
+}
+handleAttackInput(pointer) {
+    // 1. Check if the left mouse button (button 0) was pressed
+    if (this.gameOver || this.isShopping || pointer.leftButtonDown() === false) {
+      return; // Exit if game is over, shopping, or left button is not down
+    }
+    
+    const currentTime = this.time.now;
+    
+    // 2. Check attack cooldown
+    if (currentTime < this.nextAttackTime) {
+      return; // Exit if the attack is still on cooldown
+    }
+    
+    // 3. If all checks pass, execute the attack
+    this.performAttack(currentTime);
+}
+    openShop() { 
+    // Define the range the player must be within to open the shop
+    const activationRange = 100; 
 
-      // Player is already stopped by the collider, so we only handle the UI/state change
-      this.isShopping = true; 
-      this.shopUI.setVisible(true);
+    // 1. Perform the Proximity Check
+    const distanceToShop = Phaser.Math.Distance.Between(
+        this.player.x, 
+        this.player.y, 
+        this.shop.x, 
+        this.shop.y
+    );
 
-      this.updateShopUI(); // Initial UI update
-    }
+    // If the player is too far, exit the function.
+    if (distanceToShop >= activationRange) {
+        return; 
+    }
+    
+    // 2. State Checks
+    if (this.shopUI.visible || this.gameOver) return;
 
+    // --- Open the Shop ---
+    this.player.setVelocity(0, 0); 
+    this.player.anims.stop();
+    
+    this.isShopping = true; 
+    this.shopUI.setVisible(true);
+    this.updateShopUI(); 
+    this.refreshHUD(); 
+}
     // Simplified: Close Shop Function
     closeShop() {
       this.isShopping = false;
