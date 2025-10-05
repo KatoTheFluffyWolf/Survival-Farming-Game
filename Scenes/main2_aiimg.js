@@ -17,16 +17,15 @@
       this.keys = null;
       this.speed = 150;
       this.hud = null;
-      this.coordText = null;
       this.isShopping = false; // NEW: Track if the shop UI is open
     }
 
-    init() {
-      this.energy = 100;      // reset to full    
+    init() {    // reset to full    
       this.gameOver = false;
       this.currentRound = 0;   // Starts at 0, first round will be 1
       this.maxRounds = 10;     // Total number of rounds to survive
       this.enemiesRemaining = 0; // Tracks enemies to determine if a round is complete
+      this.money = 0;
 
     }
     drawHealthBar(x, y, health) {
@@ -121,6 +120,8 @@ drawBaseHealthBar() {
       this.load.image('citadel', 'assets/Hue_Citadel.png'); 
       this.load.image('banhchung', 'assets/banhchung.png'); 
       this.load.image('banhgiay', 'assets/banhgiay.png'); 
+      this.load.image('attack-visual', 'assets/hitting_effect.png');
+      this.load.image('longchimlac','assets/longchimlac.png')
     }
 
     create() {
@@ -131,6 +132,7 @@ drawBaseHealthBar() {
       this.cameras.main.setScroll(0, 0);  
       this.add.image(0, 0, 'citadel').setOrigin(0);
       
+      this.BOSS_SPEED = 5;
 
       // player
       this.player = this.physics.add.sprite(GAME_W/2, GAME_H/2 + 100, 'player');
@@ -139,6 +141,7 @@ drawBaseHealthBar() {
       this.player.setOrigin(0.2, 0.5);
       this.player.health = 100;
       this.player.maxHealth = 100;
+      this.player.attackDamage = 10;
       this.healthBar = this.add.graphics();
       this.healthBar.fillStyle(0x00ff00);
       this.healthBar.fillRect(10, 10, this.player.health, 10);
@@ -267,7 +270,7 @@ drawBaseHealthBar() {
       .setAlpha(0);
 
        // NEW: Add cooldown property and duration
-      this.healStation.cooldownDuration = 60000; // 60 seconds cooldown
+      this.healStation.cooldownDuration = 45000; // 60 seconds cooldown
       this.healStation.readyTime = 0; // The time when the zone is ready to heal again
 
 
@@ -298,6 +301,40 @@ drawBaseHealthBar() {
       this.shop.body.setSize(this.shop.width, this.shop.height);  
       this.shop.body.setOffset(0, 0.2);
 
+      const shopItems = [
+    {
+        id: 'banhchung',
+        name: 'Bánh Chưng',
+        description: 'x2 sát thương',
+        price: 50,
+        // Effect function takes the player sprite and modifies its 'attackDamage'
+        effect: (player) => { player.attackDamage *= 2; } 
+    },
+    {
+        id: 'banhgiay',
+        name: 'Bánh Giầy',
+        description: 'x2 máu tối đa',
+        price: 75,
+        // Effect function modifies 'maxHealth' and heals the player to the new max
+        effect: (player) => { 
+            player.maxHealth *= 2;  // Refill health on purchase
+            player.health = player.maxHealth;
+            this.drawHealthBar(player.x, player.y, player.health); // Update health bar display
+        }
+    },
+    {
+        id: 'longchim',
+        name: 'Lông Chim Lạc',
+        description: 'x1.5 Tốc Độ',
+        price: 60,
+        // Effect function increases the player's movement speed property
+        effect: () => { 
+            // Assuming the speed property on the player is named 'speed'
+            this.speed *= 1.5; 
+        }
+    }
+];  
+
 
       this.add.text(shopX + 20, shopY - 20, 'Cửa Hàng (E)  ', { fontSize: '14px', fill: '#ecf0f1' }).setOrigin(0.5, 1);
 
@@ -305,7 +342,7 @@ drawBaseHealthBar() {
       this.shopUI = this.add.container(GAME_W / 2, GAME_H / 2).setScrollFactor(0).setDepth(600).setVisible(false);
       
       // 1. Background Panel
-      const shopBG = this.add.rectangle(0, 0, 400, 300, 0x1c2833).setAlpha(0.9);
+      const shopBG = this.add.rectangle(0, 0, 500, 300, 0x1c2833).setAlpha(0.9);
       shopBG.setStrokeStyle(4, 0xecf0f1);
       
       // 2. Title
@@ -313,20 +350,9 @@ drawBaseHealthBar() {
         fontFamily: 'monospace', fontSize: '28px', color: '#f1c40f'
       }).setOrigin(0.5);
       
-      // ⭐ NEW: Potion Image for Item 1 ⭐
-      const banhchungIcon = this.add.image(-180, -60, 'banhchung').setOrigin(0, 0.5); 
-      const banhgiayIcon = this.add.image(-180, -20, 'banhgiay').setOrigin(0, 0.5);
-      // Position: -170 (left side), -60 (vertical position of item 1 text)
-      
-      // 3. Items (Placeholder)
-      // Text is moved slightly to the right to make room for the icon
-      const item1 = this.add.text(-100, -60, '1. Bánh Chưng (x2 sát thương)', {
-        fontFamily: 'monospace', fontSize: '18px', color: '#ffffff'
-      }).setOrigin(0, 0.5); // Changed to 0.5 vertical origin for better centering
-      
-      const item2 = this.add.text(-100, -20, '2. Bánh Giầy (x2 máu)', { // Adjusted X position
-        fontFamily: 'monospace', fontSize: '18px', color: '#ffffff'
-      }).setOrigin(0, 0.5);
+      const banhchungIcon = this.add.image(-220, -90, 'banhchung').setOrigin(0, 0.5); 
+      const banhgiayIcon = this.add.image(-220, -30, 'banhgiay').setOrigin(0, 0.5);
+      const longchimIcon = this.add.image(-220, 30, 'longchimlac').setOrigin(0,0.5);
 
       // 4. Instructions
       const instructions = this.add.text(0, 100, 'Bấm E để đóng cửa hàng', {
@@ -334,9 +360,41 @@ drawBaseHealthBar() {
       }).setOrigin(0.5);
       
       // ⭐ ADD the new icon to the container's list of objects ⭐
-      this.shopUI.add([shopBG, shopTitle, banhchungIcon, banhgiayIcon, item1, item2, instructions]);
-      
-      // ... (rest of existing create code)
+      this.shopUI.add([shopBG, shopTitle, banhchungIcon, banhgiayIcon, longchimIcon, instructions]);
+      
+      const itemContainerYStart = -90;
+      const itemSpacing = 60;
+
+      shopItems.forEach((item, index) => {
+          const yPos = itemContainerYStart + (index * itemSpacing);
+
+          // 3. Items (Text)
+          const itemText = this.add.text(-140, yPos, `${index + 1}. ${item.name} (${item.description})`, {
+              fontFamily: 'monospace', fontSize: '18px', color: '#ffffff'
+          }).setOrigin(0, 0.5);
+
+          // 4. Price and Buy Button
+          const priceText = this.add.text(100, yPos + 30, `${item.price} G`, { 
+              fontFamily: 'monospace', fontSize: '18px', color: '#5dade2'
+          }).setOrigin(0, 0.5);
+
+          const buyButton = this.add.text(150, yPos + 30, '[MUA]', {
+              fontFamily: 'monospace', fontSize: '18px', color: '#2ecc71'
+          })
+          .setOrigin(0, 0.5)
+          .setInteractive({ useHandCursor: true })
+          .on('pointerdown', () => this.buyItem(item)); // Attach buying function
+
+          // Add elements to the container
+          this.shopUI.add([itemText, priceText, buyButton]);
+      });
+
+      // 5. Player Money Display
+      this.moneyText = this.add.text(0, 70, `Tiền: ${this.money}`, {
+          fontFamily: 'monospace', fontSize: '20px', color: '#f1c40f'
+      }).setOrigin(0.5);
+      this.shopUI.add(this.moneyText);
+       
       
       // Random Building
       const buildWidth = 85;
@@ -488,12 +546,6 @@ drawBaseHealthBar() {
         color: '#ffffff'
       }).setScrollFactor(0);
 
-      this.coordText = this.add.text(8, 72, '', {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#cccccc'
-      }).setScrollFactor(0);
-
       this.refreshHUD();
       // Game Over overlay (hidden at start)
       this.gameOverText = this.add.text(GAME_W / 2, GAME_H / 2 - 20, 'GAME OVER', {
@@ -515,7 +567,19 @@ drawBaseHealthBar() {
       this.stepInterval = 250;       // tweak to taste; lower = faster cadence
       this.stepAccumulator = 0;      // timer accumulator
 
-      
+      this.nextRoundTimerText = this.add.text(GAME_W / 2, GAME_H / 2 + 60, '', {
+          fontFamily: 'monospace',
+          fontSize: '20px',
+          color: '#ffffffff' // Gold/Yellow color for visibility
+      })
+      .setOrigin(0.5)
+      .setDepth(500)
+      .setScrollFactor(0) // Fixed position
+      .setVisible(false); // Start hidden
+
+      // Initialize the flag to manage the cooldown state
+      this.roundEndTimerActive = false;
+      this.cooldownEndTime = 0;
     }
 
     update(time, delta) {
@@ -525,9 +589,28 @@ drawBaseHealthBar() {
       this.drawBaseHealthBar();
        // Simple Enemy AI: Make enemies slowly move towards the player
       this.enemies.getChildren().forEach(enemy => {
+        if (enemy.isBoss) {
+            return; // Skip regular enemy movement
+        }
         // Note: this.player must be initialized as your player sprite
         this.physics.moveToObject(enemy, this.base, enemy.speed);
-      });
+    });
+
+    // ⭐ DEDICATED BOSS MOVEMENT BLOCK ⭐
+    if (this.currentRound === 5 && this.boss && this.boss.active) {
+        
+        // Check if the boss has reached or is overlapping the actual target (this.base)
+        if (!this.physics.overlap(this.boss, this.base)) {
+            
+            // ⭐ CRITICAL FIX: The boss movement command must be here! ⭐
+            this.physics.moveToObject(this.boss, this.base, this.BOSS_SPEED);
+            
+        } else {
+            // Boss has reached the final base, stop movement
+            this.boss.body.setVelocity(0); 
+            // 💡 Base damage/attack logic goes here
+        }
+    }
 
       if (this.healStation && this.healStation.readyTime > 0) {
     const currentTime = time;
@@ -560,7 +643,7 @@ drawBaseHealthBar() {
         return; // Exit the loop early to skip all movement animation commands.
     }
 
-      if (this.energy > 0) {
+      
         const len = Math.hypot(vx, vy);
         this.player.setVelocity(len ? (vx / len) * this.speed : 0, len ? (vy / len) * this.speed : 0);
         if (len) {
@@ -604,16 +687,10 @@ drawBaseHealthBar() {
     this.player.setVelocity(0, 0);
     this.player.anims.stop();
 }
-          } else {
-            // this.player.setVelocity(0, 0); // too tired
-
-            this.triggerGameOver();
-          }
 
 
       const tx = Math.floor(this.player.x / TILE);
       const ty = Math.floor(this.player.y / TILE);
-      this.coordText.setText(`Tile: (${tx}, ${ty})`);
 
       // Are we moving?
       const moving = (vx !== 0 || vy !== 0);
@@ -634,9 +711,35 @@ drawBaseHealthBar() {
         this.stepAccumulator = 0;
         // (No need to stop the sound since it's a short one-shot)
       }
+      this.enemies.getChildren().forEach(enemy => {
+        this.drawEnemyHealthBar(enemy);
+     });
+
+
+      // ⭐ COOLDOWN HUD UPDATE ⭐
+    if (this.roundEndTimerActive) {
+        const remainingTime = this.cooldownEndTime - this.time.now;
+
+        if (remainingTime > 0) {
+            // Convert milliseconds to seconds and round up to the next whole second
+            const seconds = Math.ceil(remainingTime / 1000); 
+            
+            // Update the text display using the new name
+            this.nextRoundTimerText.setText(`Vòng mới sau ${seconds}s`);
+        } else {
+            // Cooldown finished: hide HUD and reset the flag
+            this.nextRoundTimerText.setVisible(false);
+            this.roundEndTimerActive = false;
+            // The delayedCall from checkRoundEnd will now execute startNextRound()
+        }
+    }
     }
     
     handleEnemyTouch(player, enemy) {
+    if (enemy.isBoss) {
+        // Do nothing (No damage applied to the player)
+        return; 
+    }
  // Damage cooldown: 500ms (0.5 seconds)
     const damageCooldown = 500; 
     const currentTime = this.time.now;
@@ -646,7 +749,7 @@ drawBaseHealthBar() {
     // Check if enough time has passed since the last hit
     if (currentTime > player.lastHitTime + damageCooldown) {
     // 1. Apply Damage
-    player.health -= 10;
+    player.health -= 5;
     player.lastHitTime = currentTime; // Reset the hit timer
 
     // Visual feedback: Flash the player red briefly
@@ -674,28 +777,45 @@ drawBaseHealthBar() {
     handleBaseDamage(base, enemy) {
     if (this.gameOver) return;
     
-    base.health -= 50; 
+    // ⭐ NEW: Determine Damage Amount ⭐
+    let damageAmount = 50; // Default damage for regular enemies
+
+    if (enemy.isBoss) {
+        damageAmount = 500; // Boss deals 10x damage to the base
+    }
+
+    // Apply the determined damage amount
+    base.health -= damageAmount; 
     
+    // If the boss is removed here, its separate health bar needs to be cleaned up.
+    if (enemy.isBoss && this.bossHealthBar) {
+        this.bossHealthBar.destroy();
+        this.bossHealthBar = null; 
+    }
+
+    if (enemy.healthBar) {
+        enemy.healthBar.destroy();
+        enemy.healthBar = null; 
+    }
+
     // Safely remove the enemy
     enemy.body.enable = false;
     enemy.setVelocity(0, 0); 
     enemy.setVisible(false);
     
+    // Use a delayedCall of 0 to ensure proper destruction at the end of the frame
     this.time.delayedCall(0, () => {
         if (enemy.active) {
             enemy.destroy(); 
             
-            // --- NEW CODE HERE ---
             this.enemiesRemaining--; // DECREMENT THE HUD COUNTER!
-            this.refreshHUD();       // Update the HUD immediately
-            // --- END NEW CODE ---
+            this.refreshHUD();      // Update the HUD immediately
             
-            // CRITICAL: Call checkRoundEnd ONLY when an enemy is destroyed
             this.checkRoundEnd(); 
         }
     });
 
-    this.refreshHUD(); // Keep this for Base Health update, but the enemy count will update above.
+    this.refreshHUD(); 
     
     if (base.health <= 0) {
         this.triggerGameOver('Điện Thái Hòa đã thất thủ!');
@@ -724,7 +844,7 @@ drawBaseHealthBar() {
             if (spawnedCount >= count) {
                 // Remove the timer object completely when spawning finishes!
                 this.roundSpawnTimer.remove(); 
-                this.roundSpawnTimer = null; // ✅ THIS IS WHAT TRIGGERS checkRoundEnd()
+                this.roundSpawnTimer = null; // 
                 return; // End the callback
             }
         },
@@ -745,38 +865,50 @@ drawBaseHealthBar() {
 
     // Create the enemy sprite
     const enemy = this.enemies.create(x, y, 'enemy-placeholder');
-    
+
     // Set minimal properties
     enemy.setCollideWorldBounds(true);
-    enemy.setBounce(0.5); 
-    enemy.speed = 30 + (this.currentRound * 5); // Enemy speed increases each round
+    enemy.setBounce(0.5);
+
+    enemy.speed = 10 + (this.currentRound * 5); // Enemy speed increases each round
     enemy.lastHitTime = 0; // Timer for damage cooldown
+
+    enemy.health = 30; // Increase health each round
+    enemy.maxHealth = enemy.health;
     
-    // 🟢 ADDED HEALTH PROPERTIES 🟢
-    
-    // 1. Set the initial health (e.g., 1 for a one-hit kill, or more for tougher enemies)
-    enemy.health = 1; 
-    
-    // 2. Critical flag for the damageEnemy() function to prevent multiple hits 
-    // from a single attack hitbox.
-    enemy.hitByAttack = false; 
+    // This allows the bar to be drawn relative to and move with the enemy.
+    enemy.healthBar = this.add.graphics();
 }
 
     damageEnemy(hitbox, enemy) {
-    // 1. Prevents the enemy from taking damage multiple times from the same hitbox
-    if (enemy.hitByAttack) {
+    // 1. Initialize a Set on the hitbox to track which enemies it has hit.
+    // We use a Set for fast lookups and to store the unique enemy object reference.
+    if (!hitbox.enemiesHit) {
+        hitbox.enemiesHit = new Set();
+    }
+    
+    // 2. Check if this specific enemy has already been hit by THIS specific hitbox.
+    if (hitbox.enemiesHit.has(enemy)) {
+        // If the enemy is already in the Set, exit immediately (damage already applied by this hitbox).
         return;
     }
 
+    // 3. If not hit, mark the enemy as hit by adding it to the hitbox's Set.
+    hitbox.enemiesHit.add(enemy);
+
     // Define the damage to apply (default to 1 if player.attackDamage isn't set)
     const damageAmount = this.player.attackDamage || 1;
-
-    // Mark the enemy as hit by this specific attack
-    enemy.hitByAttack = true; 
     
     enemy.health -= damageAmount; 
 
-    // 3. Visual Feedback (Flash red)
+    if (enemy.isBoss && this.bossHealthBar) {
+        // Update the custom text display for the boss
+        this.bossHealthBar.setText(`BOSS HP: ${Math.max(0, enemy.health)}`);
+        
+        // Ensure the health bar is updated if you're using separate drawing logic
+        // If the enemy health bar function handles the boss, that's fine, but this text is unique.
+    }
+    // 4. Visual Feedback (Flash red)
     enemy.setTint(0xff0000); 
     this.time.delayedCall(100, () => {
         if (enemy.active) {
@@ -786,17 +918,73 @@ drawBaseHealthBar() {
 
 
     if (enemy.health <= 0) { 
+        // Important: Destroy the enemy's dedicated health bar graphics object
+        if (enemy.healthBar) {
+            enemy.healthBar.destroy();
+        }
         
+        if (enemy.isBoss && this.bossHealthBar) {
+            this.bossHealthBar.destroy();
+            this.bossHealthBar = null; // Clear the reference
+        }
         // Destroy the enemy
         enemy.destroy(); 
+        this.money += 10;
         this.enemiesRemaining--; // DECREMENT THE HUD COUNTER!
         this.refreshHUD();       // Update the HUD immediately
 
         this.checkRoundEnd();
-        
     }
 }
 
+    drawEnemyHealthBar(enemy) {
+    // Safety check: Stop if the enemy or its graphics object is invalid.
+    if (!enemy || !enemy.healthBar || enemy.health <= 0) {
+        // If the enemy is destroyed but for some reason the bar wasn't, destroy it now.
+        if (enemy && enemy.healthBar) {
+             enemy.healthBar.destroy(); 
+        }
+        return;
+    }
+
+    const healthBar = enemy.healthBar;
+    healthBar.clear(); // Clear the previous drawing
+    
+    // to the enemy's position. This lets Phaser handle the synchronization.
+    healthBar.setPosition(enemy.x, enemy.y); 
+
+    // Configuration 
+    const barWidth = 40;
+    const barHeight = 5;
+
+    // Calculate offsets based on bar size. These offsets are drawn RELATIVE to (enemy.x, enemy.y)
+    const offsetX = -barWidth / 2;
+    const offsetY = -enemy.height / 2 - 5; 
+    
+    // The drawing coordinates are now just the offsets (relative to the Graphics object's position)
+    const drawX = offsetX;
+    const drawY = offsetY;
+
+    // Background bar (always full width)
+    healthBar.fillStyle(0x000000, 0.5); 
+    healthBar.fillRect(drawX, drawY, barWidth, barHeight);
+
+    // Foreground health bar
+    const currentHealthWidth = (barWidth * enemy.health) / enemy.maxHealth;
+    const healthPercentage = (enemy.health / enemy.maxHealth) * 100;
+
+    // Choose color based on health percentage
+    if (healthPercentage < 25) {
+        healthBar.fillStyle(0xff0000, 1); 
+    } else if (healthPercentage < 50) {
+        healthBar.fillStyle(0xffff00, 1); 
+    } else {
+        healthBar.fillStyle(0x00ff00, 1); 
+    }
+
+    // Draw the health fill
+    healthBar.fillRect(drawX, drawY, currentHealthWidth, barHeight);
+}
     handleHealingCollision(player, healStation) {
     const currentTime = this.time.now;
     const healAmount = 50; // Give a meaningful burst of healing
@@ -838,6 +1026,11 @@ drawBaseHealthBar() {
         return;
     }
 
+    if (this.currentRound === 5) {
+        this.spawnBossRound5();
+        return; // Stop the standard spawn process for this round
+    }
+
     this.currentRound++; // Advance to the next round
     const enemiesToSpawn = this.currentRound * 2;
     const spawnRate = Math.max(1000, 4000 - (this.currentRound - 1) * 500); // Decrease delay but not below 1 second
@@ -872,43 +1065,86 @@ drawBaseHealthBar() {
     }
 
     checkRoundEnd() {
-    // 1. Check if the spawner has finished (it sets this.roundSpawnTimer to null)
+    // 1. Check if the spawner has finished
     const spawningFinished = this.roundSpawnTimer === null;
     
     // 2. Check if all active enemies are gone
     const allEnemiesDestroyed = this.enemiesRemaining <= 0;
 
     if (spawningFinished && allEnemiesDestroyed) {
+        // Stop repeat calls during the cooldown
+        if (this.roundEndTimerActive) return; 
+        
+        // Activate the cooldown flag
+        this.roundEndTimerActive = true; 
+
         // All enemies for the round are gone!
         this.displayRoundInfo(`Vượt ải ${this.currentRound} thành công!`);
 
-        // Add a delay before starting the next round (5 seconds break)
-        this.time.delayedCall(5000, this.startNextRound, [], this);
+        // ⭐ START COOLDOWN SETUP ⭐
+        const cooldownDuration = 15000; // 15 seconds
+        
+        // Calculate the exact time when the cooldown should end
+        this.cooldownEndTime = this.time.now + cooldownDuration;
+        
+        // Show the countdown HUD
+        this.nextRoundTimerText.setVisible(true);
+
+        // Schedule the next round start after the delay
+        this.time.delayedCall(cooldownDuration, this.startNextRound, [], this);
     }
+}
+
+spawnBossRound5() {
+    // Gate X: 507, Gate Y: 385 (Correct center calculation)
+    const bossX = 507;
+    const bossY = 385;
+
+    // ⭐ CRITICAL FIX: Use this.boss instead of const boss
+    this.boss = this.physics.add.sprite(bossX, bossY, 'bossEnemy').setDepth(1); 
+    
+    // Set boss properties
+    this.boss.isBoss = true;
+    this.boss.health = 500;
+    this.boss.maxHealth = 500;
+    this.boss.moneyDrop = 200;
+    
+    // Set the specific slow speed for the boss
+    this.boss.speed = this.BOSS_SPEED; // Assuming you define this.BOSS_SPEED in create()
+
+    this.boss.setScale(1.5);
+    this.boss.setCollideWorldBounds(true); 
+
+    // Create and attach health bar (make sure to update the boss's HP display if using this)
+    this.bossHealthBar = this.add.text(bossX, bossY - 100, `BOSS HP: ${this.boss.health}`, {
+        fontFamily: 'monospace', fontSize: '24px', color: '#ff0000'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(500);
+
+    // ⭐ Add the scene property boss to the enemy group
+    if (this.enemies) { 
+        this.enemies.add(this.boss);
+    } 
+
+    this.enemiesRemaining = 1;
 }
     restartGame() {
       this.scene.restart();
     }
-
-    changeEnergy(amount) {
-      this.energy = Math.max(0, Math.min(100, this.energy + amount));
-      this.refreshHUD();
-    }
-
     
     refreshHUD() {
     if (this.gameOver) return;
     this.hud.setText(
-        `Energy: ${this.energy}\n` +
-        `Round: ${this.currentRound}/${this.maxRounds}\n` +
-        `Enemies Left: ${this.enemiesRemaining}`
+        `Máu: ${this.player.health}/${this.player.maxHealth}\n` +
+        `Sát Thương: ${this.player.attackDamage}\n` +
+        `Vàng: ${this.money}\n` +
+        `Vòng: ${this.currentRound}/${this.maxRounds}\n` +
+        `Địch còn lại: ${this.enemiesRemaining}`
     );
 }
     triggerGameOver() {
       this.gameOver = true;
       this.player.setVelocity(0, 0);
       this.hud.setText('');
-      this.coordText.setText('');
       this.gameOverText.setVisible(true);
       this.restartText.setVisible(true);
       if (this.stepSfx) this.stepSfx.stop();
@@ -921,8 +1157,6 @@ if (this.stepSfx) this.stepSfx.destroy();
     if (this.attackSfx) {
         this.attackSfx.play();
     }
-    
-    // 🟢 ADDED: Play the attack animation 🟢
     // Check player's facing direction and play the corresponding animation
     if (this.player.facing === 'left') {
         this.player.anims.play('attack-left', true);
@@ -930,7 +1164,6 @@ if (this.stepSfx) this.stepSfx.destroy();
         this.player.anims.play('attack-right', true);
     } 
     // NOTE: You may want to add 'attack-up' and 'attack-down' here if they exist.
-    // If not, the player will stay on the last directional frame, which is usually fine.
     
     // 3. Define Hitbox Parameters
     let hitboxX = this.player.x;
@@ -941,24 +1174,36 @@ if (this.stepSfx) this.stepSfx.destroy();
     // 4. Position the Hitbox based on player.facing
     switch (this.player.facing) {
       case 'up':
-        hitboxY -= 20;
+        hitboxY -= 30;
         break;
       case 'down':
-        hitboxY += 20;
+        hitboxY += 30;
         break;
       case 'left':
-        hitboxX -= 20;
+        hitboxX -= 30;
         break;
       case 'right':
-        hitboxX += 20;
+        hitboxX += 30;
         break;
       default:
     }
     
-    // 5. Create the VISIBLE Physics Rectangle
-    const hitbox = this.add.rectangle(hitboxX, hitboxY, hitboxW, hitboxH, 0xff00ff).setAlpha(0);
+    // --- START NEW VISUAL EFFECT LOGIC ---
     
-    // 6. Apply Physics and Add to Group
+    // NOTE: You must load an image with the key 'attack-visual' 
+    // in your scene's preload() function for this to display correctly!
+    // Example preload: this.load.image('attack-visual', 'path/to/your/image.png');
+    
+    // 5. Create the VISIBLE visual effect (replaces the pink rectangle)
+    // We'll use a placeholder URL for the asset key 'attack-visual' here.
+    const attackVisual = this.add.image(hitboxX, hitboxY, 'attack-visual').setScale(0.8);
+    attackVisual.setDepth(1); // Ensure it draws above the player/enemies
+    
+    // 6. Create the INVISIBLE Physics Rectangle for collision
+    // This is the functional part that triggers damage, now completely transparent.
+    const hitbox = this.add.rectangle(hitboxX, hitboxY, hitboxW, hitboxH).setAlpha(0);
+    
+    // 7. Apply Physics and Add to Group (Hitbox is the functional element)
     this.physics.add.existing(hitbox);
     this.attackHitboxes.add(hitbox);
     
@@ -966,9 +1211,10 @@ if (this.stepSfx) this.stepSfx.destroy();
     hitbox.body.setImmovable(true); 
     hitbox.body.moves = false;
     
-    // 7. Destroy the hitbox after a very short duration (e.g., 50ms)
+    // 8. Destroy BOTH the visual effect and the invisible physics hitbox after 50ms
     this.time.delayedCall(50, () => {
         hitbox.destroy();
+        attackVisual.destroy(); // Destroy the visual element
     }, [], this);
 }
 handleAttackInput(pointer) {
@@ -987,6 +1233,50 @@ handleAttackInput(pointer) {
     // 3. If all checks pass, execute the attack
     this.performAttack(currentTime);
 }
+
+  buyItem(item) {
+    if (!this.shopUI.visible) return; // Prevent buying if shop is closed
+
+    if (this.money >= item.price) {
+        // 1. Deduct cost
+        this.money -= item.price;
+        
+        // 2. Apply effect
+        item.effect(this.player);
+
+        // 3. Update UI feedback
+        this.moneyText.setText(`Tiền: ${this.money}`);
+        
+        // Optional: Add a temporary success message
+        const successMessage = this.add.text(0, 0, `Đã mua ${item.name}!`, { 
+            fontFamily: 'monospace', fontSize: '24px', color: '#27ae60' 
+        }).setOrigin(0.5).setDepth(601);
+        this.refreshHUD();
+        this.shopUI.add(successMessage);
+        
+        this.tweens.add({
+            targets: successMessage,
+            alpha: 0,
+            y: successMessage.y - 20,
+            duration: 1000,
+            onComplete: () => {
+                successMessage.destroy();
+            }
+        });
+
+    } else {
+        // Display insufficient funds message
+        const errorText = this.add.text(0, 40, 'Không đủ tiền!', {
+            fontFamily: 'monospace', fontSize: '24px', color: '#e74c3c'
+        }).setOrigin(0.5).setDepth(601);
+        this.shopUI.add(errorText);
+        
+        this.time.delayedCall(1000, () => {
+            errorText.destroy();
+        });
+    }
+}
+
     openShop() { 
     // Define the range the player must be within to open the shop
     const activationRange = 100; 
