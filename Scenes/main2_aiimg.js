@@ -1020,6 +1020,7 @@ drawBaseHealthBar() {
 }
 
     startNextRound() {
+    this.currentRound++; 
     if (this.currentRound >= this.maxRounds) {
         // Player survived all rounds
         this.triggerGameOver('Chiến thắng!');
@@ -1031,7 +1032,7 @@ drawBaseHealthBar() {
         return; // Stop the standard spawn process for this round
     }
 
-    this.currentRound++; // Advance to the next round
+     // Advance to the next round
     const enemiesToSpawn = this.currentRound * 2;
     const spawnRate = Math.max(1000, 4000 - (this.currentRound - 1) * 500); // Decrease delay but not below 1 second
     this.enemiesRemaining = enemiesToSpawn;
@@ -1096,6 +1097,7 @@ drawBaseHealthBar() {
 }
 
 spawnBossRound5() {
+    this.roundSpawnTimer = null;
     // Gate X: 507, Gate Y: 385 (Correct center calculation)
     const bossX = 507;
     const bossY = 385;
@@ -1303,6 +1305,7 @@ handleAttackInput(pointer) {
     
     this.isShopping = true; 
     this.shopUI.setVisible(true);
+    this.moneyText.setText(`Tiền: ${this.money}`);
     this.updateShopUI(); 
     this.refreshHUD(); 
 }
