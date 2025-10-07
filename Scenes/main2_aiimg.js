@@ -624,30 +624,31 @@ drawBaseHealthBar() {
       this.cooldownEndTime = 0;
 
 
-      this.background = this.add.rectangle(250, 140, 500, 100, 0x333333).setOrigin(0).setAlpha(0.8);
+      this.background = this.add.rectangle(220, 90, 550, 100, 0x333333).setOrigin(0).setAlpha(0.8);
 
         // Loading/Response text
         this.responseText = this.add.text(
-            260, 
-            150, 
+            230, 
+            100, 
             'Awaiting Gemini response...',
             { 
                 fontFamily: 'Arial', 
-                fontSize: '24px', 
+                fontSize: '13px', 
                 color: '#ffffff',
-                wordWrap: { width: 600 }
+                wordWrap: { width: 600 },
+                lineSpacing: 10
             }
         ).setOrigin(0);
         this.children.bringToTop(this.responseText); 
         
         // --- 2. SETUP HIDDEN BUTTON ---
         this.startButton = this.add.text(
-            110, 
+            100, 
             150, // Position it below the response text (will be moved later)
-            'NHẤN ĐỂ BẮT ĐẦU',
+            '[NHẤN ĐỂ BẮT ĐẦU]',
             { 
                 fontFamily: 'Arial', 
-                fontSize: '32px', 
+                fontSize: '18px', 
                 color: '#ffdd00' // Gold/Yellow for visibility
             }
         )
@@ -1561,8 +1562,10 @@ handleAttackInput(pointer) {
             }
 
             newTextContent = await response.text();
-            newTextContent = newTextContentRaw.replace(/(\*\*|")/g, '');
-            
+            newTextContent = newTextContent.replace(/(\*\*|")/g, '');
+    
+    
+            newTextContent = newTextContent.replace(/\\n/g, '\n'); 
         } catch (error) {
             console.error("Lỗi khi tải", error);
             isError = true;
