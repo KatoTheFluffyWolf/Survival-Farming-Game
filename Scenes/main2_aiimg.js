@@ -17,6 +17,7 @@
       this.keys = null;
       this.speed = 150;
       this.hud = null;
+      this.startButton = null;
       this.isShopping = false; // NEW: Track if the shop UI is open
     }
 
@@ -114,8 +115,9 @@ drawBaseHealthBar() {
       g.clear();
       
 
-      
-      this.load.spritesheet('player','assets/giong_spritesheet64.png',{ frameWidth:49, frameHeight:64 });    
+      this.load.spritesheet('boss1','assets/BOSS_SPRITES.png', {frameWidth: 128, frameHeight:128})
+      this.load.spritesheet('enemies','assets/enemies.png',{ frameWidth:64, frameHeight:64 });    
+      this.load.spritesheet('player','assets/giong_spritesheet64.png',{ frameWidth:49, frameHeight:64 });
       this.load.audio('step',['assets/step.mp3']);
       this.load.image('citadel', 'assets/Hue_Citadel.png'); 
       this.load.image('banhchung', 'assets/banhchung.png'); 
@@ -222,6 +224,8 @@ drawBaseHealthBar() {
       .setOrigin(0, 0) // Key to aligning with physics body
       .setAlpha(0);
 
+      this.add.text(gateX + 50, gateY + 50, 'Ngọ Môn', { fontSize: '20px', fill: '#f1ececff' }).setOrigin(0.5, 1).setDepth(500);
+
       this.physics.add.existing(this.gate, true);
       this.physics.add.collider(this.player, this.gate);
       this.gate.body.setSize(this.gate.width, this.gate.height);  
@@ -306,18 +310,18 @@ drawBaseHealthBar() {
         id: 'banhchung',
         name: 'Bánh Chưng',
         description: 'x2 sát thương',
-        price: 50,
+        price: 75,
         // Effect function takes the player sprite and modifies its 'attackDamage'
         effect: (player) => { player.attackDamage *= 2; } 
     },
     {
         id: 'banhgiay',
         name: 'Bánh Giầy',
-        description: 'x2 máu tối đa',
+        description: '+20 máu tối đa',
         price: 75,
         // Effect function modifies 'maxHealth' and heals the player to the new max
         effect: (player) => { 
-            player.maxHealth *= 2;  // Refill health on purchase
+            player.maxHealth += 20;  // Refill health on purchase
             player.health = player.maxHealth;
             this.drawHealthBar(player.x, player.y, player.health); // Update health bar display
         }
@@ -460,7 +464,6 @@ drawBaseHealthBar() {
           null,                // Optional processCallback (use null)
           this                 // Context (the scene itself)
       );
-      this.startNextRound();
 
 
       // Animations 
@@ -511,6 +514,41 @@ drawBaseHealthBar() {
         frameRate: 10,
         repeat: 0
       });
+
+
+      //Enemy anims
+      this.anims.create({
+        key: 'enemy-left',
+        frames: this.anims.generateFrameNumbers('enemies', { start: 0, end: 2 }),
+        frameRate: 10,
+        repeat: -1
+      });
+      this.anims.create({
+        key: 'enemy-right',
+        frames: this.anims.generateFrameNumbers('enemies', { start: 3, end: 5 }),
+        frameRate: 10,
+        repeat: -1
+      });
+      this.anims.create({
+        key: 'enemy-attack-left',
+        frames: this.anims.generateFrameNumbers('enemies', { start: 6, end: 8 }),
+        frameRate: 5,
+        repeat: 0
+      });
+      this.anims.create({
+        key: 'enemy-attack-right',
+        frames: this.anims.generateFrameNumbers('enemies', { start: 9, end: 11 }),
+        frameRate: 5,
+        repeat: 0
+      });
+
+      // Boss anims
+      this.anims.create({
+        key: 'boss1-walk',
+        frames: this.anims.generateFrameNumbers('boss1', { start: 0, end: 3 }),
+        frameRate: 10,
+        repeat: -1
+      });
       // Input
       this.cursors = this.input.keyboard.createCursorKeys();
       this.keys = this.input.keyboard.addKeys({
@@ -552,6 +590,10 @@ drawBaseHealthBar() {
         fontFamily: 'monospace', fontSize: '32px', color: '#ffd900ff'
       }).setOrigin(0.5).setDepth(500).setVisible(false);
 
+      this.VictoryText = this.add.text(GAME_W / 2, GAME_H / 2 - 20, 'Chiến Thắng!', {
+        fontFamily: 'monospace', fontSize: '32px', color: '#ffd900ff'
+      }).setOrigin(0.5).setDepth(500).setVisible(false);
+
       this.restartText = this.add.text(GAME_W / 2, GAME_H / 2 + 20, 'Bấm R để chơi lại', {
         fontFamily: 'monospace', fontSize: '20px', color: '#ffffff'
       }).setOrigin(0.5).setDepth(500).setVisible(false);
@@ -580,7 +622,48 @@ drawBaseHealthBar() {
       // Initialize the flag to manage the cooldown state
       this.roundEndTimerActive = false;
       this.cooldownEndTime = 0;
+
+
+      this.background = this.add.rectangle(250, 140, 500, 100, 0x333333).setOrigin(0).setAlpha(0.8);
+
+        // Loading/Response text
+        this.responseText = this.add.text(
+            260, 
+            150, 
+            'Awaiting Gemini response...',
+            { 
+                fontFamily: 'Arial', 
+                fontSize: '24px', 
+                color: '#ffffff',
+                wordWrap: { width: 600 }
+            }
+        ).setOrigin(0);
+        this.children.bringToTop(this.responseText); 
+        
+        // --- 2. SETUP HIDDEN BUTTON ---
+        this.startButton = this.add.text(
+            110, 
+            150, // Position it below the response text (will be moved later)
+            'NHẤN ĐỂ BẮT ĐẦU',
+            { 
+                fontFamily: 'Arial', 
+                fontSize: '32px', 
+                color: '#ffdd00' // Gold/Yellow for visibility
+            }
+        )
+        .setOrigin(0)
+        .setDepth(500)
+        .setInteractive() // Make it clickable!
+        .setVisible(false); // Start hidden
+
+        // Attach the final game start action to the button
+        this.startButton.on('pointerdown', this.startGame, this);
+        
+        // --- 3. START THE ASYNCHRONOUS PROCESS ---
+        this.startLoadingAndFetch(); 
     }
+
+
 
     update(time, delta) {
 
@@ -597,7 +680,7 @@ drawBaseHealthBar() {
     });
 
     // ⭐ DEDICATED BOSS MOVEMENT BLOCK ⭐
-    if (this.currentRound === 5 && this.boss && this.boss.active) {
+    if (this.boss && this.boss.active) {
         
         // Check if the boss has reached or is overlapping the actual target (this.base)
         if (!this.physics.overlap(this.boss, this.base)) {
@@ -740,7 +823,44 @@ drawBaseHealthBar() {
         // Do nothing (No damage applied to the player)
         return; 
     }
- // Damage cooldown: 500ms (0.5 seconds)
+    
+    // Check if the enemy is already playing an attack animation
+    if (enemy.anims.isPlaying && enemy.anims.currentAnim.key.includes('attack')) {
+        return; // Don't interrupt an ongoing attack animation
+    }
+    
+    // --- Determine Attack Animation Key ---
+    let attackAnimKey;
+    
+    // Check velocity to determine facing direction:
+    if (enemy.body.velocity.x < 0) {
+        // Enemy is moving/facing LEFT
+        attackAnimKey = 'enemy-attack-left';
+    } else {
+        // Enemy is moving/facing RIGHT
+        attackAnimKey = 'enemy-attack-right';
+    }
+    
+    // --- Trigger the Attack Animation ---
+    // Use once to play the attack animation only one time
+    enemy.play(attackAnimKey, true); 
+    
+    // Important: Stop the movement/walking animation while attacking
+    enemy.setVelocityX(0);
+
+    // After the attack animation completes, return to walking
+    enemy.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+        // Restore velocity and walk animation based on original direction
+        if (attackAnimKey === 'enemy-attack-left') {
+            enemy.setVelocityX(-enemy.speed);
+            enemy.play('enemy-left');
+        } else {
+            enemy.setVelocityX(enemy.speed);
+            enemy.play('enemy-right');
+        }
+    });
+
+    // --- Apply Damage Cooldown and Logic ---
     const damageCooldown = 500; 
     const currentTime = this.time.now;
     
@@ -748,30 +868,30 @@ drawBaseHealthBar() {
 
     // Check if enough time has passed since the last hit
     if (currentTime > player.lastHitTime + damageCooldown) {
-    // 1. Apply Damage
-    player.health -= 5;
-    player.lastHitTime = currentTime; // Reset the hit timer
+        // 1. Apply Damage
+        player.health -= 5;
+        player.lastHitTime = currentTime; // Reset the hit timer
+        
+        // Visual feedback: Flash the player red briefly
+        this.tweens.add({
+            targets: player,
+            duration: 100,
+            tint: 0xff0000,
+            yoyo: true,
+            onComplete: () => {
+                player.setTint(0xffffff); // Return to normal color
+            }
+        });
 
-    // Visual feedback: Flash the player red briefly
-    this.tweens.add({
-    targets: player,
-    duration: 100,
-    tint: 0xff0000,
-    yoyo: true,
-    onComplete: () => {
-    player.setTint(0xffffff); // Return to normal color
-    }
-    });
+        // 2. Update HUD
+        this.refreshHUD();
 
-    // 2. Update HUD
-    this.refreshHUD();
-
-    // 3. Check for game over
-    if (player.health <= 0) {
-    this.triggerGameOver();
+        // 3. Check for game over
+        if (player.health <= 0) {
+            this.triggerGameOver();
+        }
     }
-    }
-    }
+}
 
 
     handleBaseDamage(base, enemy) {
@@ -856,6 +976,7 @@ drawBaseHealthBar() {
     createSingleEnemy() {
     if (this.gameOver) return;
 
+    // --- 1. Get Spawn Location ---
     // Choose a random spawn point
     const spawnPoint = Phaser.Math.RND.pick(this.spawnPoints);
 
@@ -864,15 +985,40 @@ drawBaseHealthBar() {
     const y = spawnPoint.body.center.y;
 
     // Create the enemy sprite
-    const enemy = this.enemies.create(x, y, 'enemy-placeholder');
+    const enemy = this.enemies.create(x, y, 'enemies').setScale(0.6);
 
     // Set minimal properties
     enemy.setCollideWorldBounds(true);
     enemy.setBounce(0.5);
 
-    enemy.speed = 10 + (this.currentRound * 5); // Enemy speed increases each round
-    enemy.lastHitTime = 0; // Timer for damage cooldown
+    // --- 2. Apply Facing Logic and Movement ---
 
+    // Define the base/center X-coordinate. Replace 'this.baseX' 
+    // with the actual X-coordinate of your game's base/center.
+    const baseX = this.baseX || (this.sys.game.config.width / 2); // Fallback to screen center
+
+    enemy.speed = 10 + (this.currentRound * 5); // Enemy speed increases each round
+
+    if (x > baseX) {
+        // Enemy spawned on the RIGHT side. It must walk LEFT.
+         
+
+        // 2. Set movement speed to negative for leftward movement.
+        enemy.setVelocityX(-enemy.speed); 
+        enemy.play('enemy-left'); 
+
+    } else {
+        // Enemy spawned on the LEFT side. It must walk RIGHT.
+
+        // 2. Set movement speed to positive for rightward movement.
+        enemy.setVelocityX(enemy.speed); 
+
+        // 3. Play the walking animation
+        enemy.play('enemy-right'); 
+    }
+
+    // --- 3. Set Other Properties ---
+    enemy.lastHitTime = 0; // Timer for damage cooldown
     enemy.health = 30; // Increase health each round
     enemy.maxHealth = enemy.health;
     
@@ -903,7 +1049,7 @@ drawBaseHealthBar() {
 
     if (enemy.isBoss && this.bossHealthBar) {
         // Update the custom text display for the boss
-        this.bossHealthBar.setText(`BOSS HP: ${Math.max(0, enemy.health)}`);
+        this.bossHealthBar.setText(`TRIỆU ĐÀ: ${Math.max(0, enemy.health)}`);
         
         // Ensure the health bar is updated if you're using separate drawing logic
         // If the enemy health bar function handles the boss, that's fine, but this text is unique.
@@ -1021,14 +1167,19 @@ drawBaseHealthBar() {
 
     startNextRound() {
     this.currentRound++; 
-    if (this.currentRound >= this.maxRounds) {
+    if (this.currentRound > this.maxRounds) {
         // Player survived all rounds
-        this.triggerGameOver('Chiến thắng!');
+        this.triggerVictory();
         return;
     }
 
     if (this.currentRound === 5) {
         this.spawnBossRound5();
+        return; // Stop the standard spawn process for this round
+    }
+
+    else if (this.currentRound === 10) {
+        this.spawnBossRound10();
         return; // Stop the standard spawn process for this round
     }
 
@@ -1103,7 +1254,7 @@ spawnBossRound5() {
     const bossY = 385;
 
     // ⭐ CRITICAL FIX: Use this.boss instead of const boss
-    this.boss = this.physics.add.sprite(bossX, bossY, 'bossEnemy').setDepth(1); 
+    this.boss = this.physics.add.sprite(bossX, bossY, 'boss1').setDepth(1); 
     
     // Set boss properties
     this.boss.isBoss = true;
@@ -1112,13 +1263,14 @@ spawnBossRound5() {
     this.boss.moneyDrop = 200;
     
     // Set the specific slow speed for the boss
-    this.boss.speed = this.BOSS_SPEED; // Assuming you define this.BOSS_SPEED in create()
-
-    this.boss.setScale(1.5);
+    this.boss.speed = this.BOSS_SPEED;
+    this.boss.setVelocityX(this.boss.speed); // Assuming you define this.BOSS_SPEED in create()
+    this.boss.play('boss1-walk'); 
+    this.boss.setScale(0.5);
     this.boss.setCollideWorldBounds(true); 
 
     // Create and attach health bar (make sure to update the boss's HP display if using this)
-    this.bossHealthBar = this.add.text(bossX, bossY - 100, `BOSS HP: ${this.boss.health}`, {
+    this.bossHealthBar = this.add.text(bossX, bossY - 100, `TRIỆU ĐÀ: ${this.boss.health}`, {
         fontFamily: 'monospace', fontSize: '24px', color: '#ff0000'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(500);
 
@@ -1129,20 +1281,77 @@ spawnBossRound5() {
 
     this.enemiesRemaining = 1;
 }
+spawnBossRound10() {
+    this.roundSpawnTimer = null;
+    // Gate X: 507, Gate Y: 385 (Correct center calculation)
+    const bossX = 507;
+    const bossY = 385;
+
+    // ⭐ CRITICAL FIX: Use this.boss instead of const boss
+    this.boss = this.physics.add.sprite(bossX, bossY, 'boss1').setDepth(1); 
+    
+    // Set boss properties
+    this.boss.isBoss = true;
+    this.boss.health = 1000;
+    this.boss.maxHealth = 500;
+    this.boss.moneyDrop = 200;
+    
+    // Set the specific slow speed for the boss
+    this.boss.speed = this.BOSS_SPEED;
+    this.boss.setVelocityX(this.boss.speed); // Assuming you define this.BOSS_SPEED in create()
+    this.boss.play('boss1-walk'); 
+    this.boss.setScale(0.5);
+    this.boss.setCollideWorldBounds(true); 
+
+    // Create and attach health bar (make sure to update the boss's HP display if using this)
+    this.bossHealthBar = this.add.text(bossX, bossY - 100, `TRIỆU ĐÀ: ${this.boss.health}`, {
+        fontFamily: 'monospace', fontSize: '24px', color: '#ff0000'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(500);
+
+    // ⭐ Add the scene property boss to the enemy group
+    if (this.enemies) { 
+        this.enemies.add(this.boss);
+    } 
+
+    this.enemiesRemaining = 1;
+}
+
     restartGame() {
       this.scene.restart();
     }
-    
+
+    startGame() {
+        
+        // 1. CLEAN UP THE INTRO/LOADING UI
+        this.responseText.destroy();
+        this.background.destroy();
+        this.startButton.destroy(); 
+        
+        // 2. Initial game setup (e.g., creating the player sprite, map assets)
+        // ... (Place your unique 'first time' game setup here) ...
+
+        // 3. Delegate to the reusable round start function
+        this.startNextRound();
+    }
+
     refreshHUD() {
     if (this.gameOver) return;
     this.hud.setText(
         `Máu: ${this.player.health}/${this.player.maxHealth}\n` +
-        `Sát Thương: ${this.player.attackDamage}\n` +
-        `Vàng: ${this.money}\n` +
+        `Sát Thương: ${this.player.attackDamage}\n` +   
+        `Công Trạng: ${this.money}\n` +
         `Vòng: ${this.currentRound}/${this.maxRounds}\n` +
         `Địch còn lại: ${this.enemiesRemaining}`
     );
-}
+}   
+    triggerVictory() {
+        this.gameOver = true;
+        this.player.setVelocity(0, 0);
+        this.hud.setText('');
+        this.VictoryText.setVisible(true);
+        this.restartText.setVisible(true);
+        if (this.stepSfx) this.stepSfx.stop();
+    }
     triggerGameOver() {
       this.gameOver = true;
       this.player.setVelocity(0, 0);
@@ -1192,10 +1401,7 @@ if (this.stepSfx) this.stepSfx.destroy();
     
     // --- START NEW VISUAL EFFECT LOGIC ---
     
-    // NOTE: You must load an image with the key 'attack-visual' 
-    // in your scene's preload() function for this to display correctly!
-    // Example preload: this.load.image('attack-visual', 'path/to/your/image.png');
-    
+     
     // 5. Create the VISIBLE visual effect (replaces the pink rectangle)
     // We'll use a placeholder URL for the asset key 'attack-visual' here.
     const attackVisual = this.add.image(hitboxX, hitboxY, 'attack-visual').setScale(0.8);
@@ -1247,7 +1453,7 @@ handleAttackInput(pointer) {
         item.effect(this.player);
 
         // 3. Update UI feedback
-        this.moneyText.setText(`Tiền: ${this.money}`);
+        this.moneyText.setText(`Công Trạng: ${this.money}`);
         
         // Optional: Add a temporary success message
         const successMessage = this.add.text(0, 0, `Đã mua ${item.name}!`, { 
@@ -1324,8 +1530,72 @@ handleAttackInput(pointer) {
     inBounds(tx, ty) {
       return tx >= 0 && tx < GRID_W && ty >= 0 && ty < GRID_H;
     }
-  }
 
+    startLoadingAndFetch() {
+        const lambdaUrl = 'https://wgg7a238d3.execute-api.ap-southeast-2.amazonaws.com/default/AI-generated-hint-phaser-3'; 
+        this.responseText.setText('Đang tải hướng dẫn từ AI...');
+
+         this.loadingTween = this.tweens.add({
+            targets: this.responseText,
+            alpha: 0.3, // Fade to 30% opacity
+            duration: 800, // Duration of one fade cycle in ms
+            ease: 'Sine.easeInOut',
+            yoyo: true, // Go back and forth (pulse)
+            repeat: -1 // Repeat forever
+        });
+
+        this.fetchDataAndHandleResponse(lambdaUrl);
+    }
+
+    // --- FUNCTION 2: Handles the async call and flow control ---
+    async fetchDataAndHandleResponse(lambdaUrl) {
+        let newTextContent = 'LỖI KẾT NỐI:\nKhông thể nhận hướng dẫn.';
+        let isError = false;
+
+        try {
+            const response = await fetch(lambdaUrl, { method: 'GET' });
+
+            if (!response.ok) {
+                const errorDetail = await response.text(); 
+                throw new Error(`HTTP error! Status: ${response.status}. Detail: ${errorDetail}`);
+            }
+
+            newTextContent = await response.text();
+            newTextContent = newTextContentRaw.replace(/(\*\*|")/g, '');
+            
+        } catch (error) {
+            console.error("Lỗi khi tải", error);
+            isError = true;
+        }
+        
+        if (this.loadingTween) {
+        this.loadingTween.stop();
+        this.responseText.setAlpha(1); // Ensure text is fully visible
+    }
+        // --- Flow Control: Runs AFTER the API call completes or fails ---
+
+        // 1. Finalize the main response text
+        this.responseText.setText(isError ? newTextContent : '' + newTextContent);
+        this.responseText.setColor(isError ? '#ffffffff' : '#ffffff'); 
+
+        // 2. Resize the background to fit the final text
+        const bounds = this.responseText.getBounds();
+        this.background.setSize(bounds.width + 20, bounds.height + 20);
+        
+        // 3. Position the button immediately below the response text
+        // Set its new position based on the final text height
+        this.startButton.setPosition(
+            bounds.x, 
+            bounds.bottom + 10 // 10 pixels of padding below the text
+        );
+        
+        // 4. Show the button! (The player can now click it)
+        this.startButton.setVisible(true);
+        this.background.height += this.startButton.height + 10; // Expand background to cover button area
+    }
+
+
+  }
 
   const config = {
     type: Phaser.AUTO,
