@@ -114,11 +114,15 @@ drawBaseHealthBar() {
       g.generateTexture('tile-ground', TILE, TILE);
       g.clear();
       
-
+      this.load.spritesheet('boss2','assets/TIGER_SPRITES.png', {frameWidth: 128, frameHeight:128})
       this.load.spritesheet('boss1','assets/BOSS_SPRITES.png', {frameWidth: 128, frameHeight:128})
       this.load.spritesheet('enemies','assets/enemies.png',{ frameWidth:64, frameHeight:64 });    
       this.load.spritesheet('player','assets/giong_spritesheet64.png',{ frameWidth:49, frameHeight:64 });
+      this.load.audio('attack-sfx',['assets/attack-sfx.wav']);
       this.load.audio('step',['assets/step.mp3']);
+      this.load.audio('heal',['assets/heal.wav']);
+      this.load.audio('buy',['assets/buy.wav']);
+      this.load.audio('buy-fail',['assets/buy-fail.wav'])
       this.load.image('citadel', 'assets/Hue_Citadel.png'); 
       this.load.image('banhchung', 'assets/banhchung.png'); 
       this.load.image('banhgiay', 'assets/banhgiay.png'); 
@@ -346,7 +350,7 @@ drawBaseHealthBar() {
       this.shopUI = this.add.container(GAME_W / 2, GAME_H / 2).setScrollFactor(0).setDepth(600).setVisible(false);
       
       // 1. Background Panel
-      const shopBG = this.add.rectangle(0, 0, 500, 300, 0x1c2833).setAlpha(0.9);
+      const shopBG = this.add.rectangle(0, 0, 500, 350, 0x1c2833).setAlpha(0.9);
       shopBG.setStrokeStyle(4, 0xecf0f1);
       
       // 2. Title
@@ -359,8 +363,8 @@ drawBaseHealthBar() {
       const longchimIcon = this.add.image(-220, 30, 'longchimlac').setOrigin(0,0.5);
 
       // 4. Instructions
-      const instructions = this.add.text(0, 100, 'Bấm E để đóng cửa hàng', {
-        fontFamily: 'monospace', fontSize: '20px', color: '#e74c3c'
+      const instructions = this.add.text(0, 150, 'Bấm E để đóng cửa hàng', {
+        fontFamily: 'monospace', fontSize: '24px', color: '#e74c3c'
       }).setOrigin(0.5);
       
       // ⭐ ADD the new icon to the container's list of objects ⭐
@@ -394,7 +398,7 @@ drawBaseHealthBar() {
       });
 
       // 5. Player Money Display
-      this.moneyText = this.add.text(0, 70, `Tiền: ${this.money}`, {
+      this.moneyText = this.add.text(0, 120, `Tiền: ${this.money}`, {
           fontFamily: 'monospace', fontSize: '20px', color: '#f1c40f'
       }).setOrigin(0.5);
       this.shopUI.add(this.moneyText);
@@ -549,6 +553,13 @@ drawBaseHealthBar() {
         frameRate: 10,
         repeat: -1
       });
+
+      this.anims.create({
+        key: 'boss2-walk',
+        frames: this.anims.generateFrameNumbers('boss2', { start: 12, end: 15 }),
+        frameRate: 10,
+        repeat: -1
+      })
       // Input
       this.cursors = this.input.keyboard.createCursorKeys();
       this.keys = this.input.keyboard.addKeys({
@@ -604,7 +615,10 @@ drawBaseHealthBar() {
       });
       // sound
       this.stepSfx = this.sound.add('step', { volume: 0.4 });
-
+      this.enemyHitSfx = this.sound.add('attack-sfx', {volume: 0.4});
+      this.healSfx = this.sound.add('heal', {volume: 0.4});
+      this.buySfx = this.sound.add('buy', {volume: 0.4});
+      this.buyFailSfx = this.sound.add('buy-fail', {volume: 0.4});
       // footstep cadence (ms between steps)
       this.stepInterval = 250;       // tweak to taste; lower = faster cadence
       this.stepAccumulator = 0;      // timer accumulator
@@ -686,13 +700,10 @@ drawBaseHealthBar() {
         // Check if the boss has reached or is overlapping the actual target (this.base)
         if (!this.physics.overlap(this.boss, this.base)) {
             
-            // ⭐ CRITICAL FIX: The boss movement command must be here! ⭐
             this.physics.moveToObject(this.boss, this.base, this.BOSS_SPEED);
             
         } else {
-            // Boss has reached the final base, stop movement
             this.boss.body.setVelocity(0); 
-            // 💡 Base damage/attack logic goes here
         }
     }
 
@@ -1043,14 +1054,24 @@ drawBaseHealthBar() {
     // 3. If not hit, mark the enemy as hit by adding it to the hitbox's Set.
     hitbox.enemiesHit.add(enemy);
 
+     if (this.enemyHitSfx) {
+        this.enemyHitSfx.play();
+    }
     // Define the damage to apply (default to 1 if player.attackDamage isn't set)
     const damageAmount = this.player.attackDamage || 1;
     
     enemy.health -= damageAmount; 
 
-    if (enemy.isBoss && this.bossHealthBar) {
+    if (enemy.isBoss && this.bossHealthBar && this.currentRound === 5) {
         // Update the custom text display for the boss
         this.bossHealthBar.setText(`TRIỆU ĐÀ: ${Math.max(0, enemy.health)}`);
+        
+        // Ensure the health bar is updated if you're using separate drawing logic
+        // If the enemy health bar function handles the boss, that's fine, but this text is unique.
+    }
+    else if (enemy.isBoss && this.bossHealthBar && this.currentRound === 10) {
+        // Update the custom text display for the boss
+        this.bossHealthBar.setText(`BẠCH HỔ: ${Math.max(0, enemy.health)}`);
         
         // Ensure the health bar is updated if you're using separate drawing logic
         // If the enemy health bar function handles the boss, that's fine, but this text is unique.
@@ -1152,6 +1173,9 @@ drawBaseHealthBar() {
     // 3. Apply Healing (Capped at maxHealth)
     player.health = Math.min(player.maxHealth, player.health + healAmount);
     
+    if (this.healSfx) {
+        this.healSfx.play();
+    }
     // 4. Set Cooldown: Calculate the next ready time
     healStation.readyTime = currentTime + healStation.cooldownDuration;
     healStation.cooldownText.setVisible(true); 
@@ -1231,6 +1255,10 @@ drawBaseHealthBar() {
         // Activate the cooldown flag
         this.roundEndTimerActive = true; 
 
+        if (this.currentRound == 10) {
+            this.triggerVictory();
+            return;
+        }
         // All enemies for the round are gone!
         this.displayRoundInfo(`Vượt ải ${this.currentRound} thành công!`);
 
@@ -1289,23 +1317,23 @@ spawnBossRound10() {
     const bossY = 385;
 
     // ⭐ CRITICAL FIX: Use this.boss instead of const boss
-    this.boss = this.physics.add.sprite(bossX, bossY, 'boss1').setDepth(1); 
+    this.boss = this.physics.add.sprite(bossX, bossY, 'boss2').setDepth(1); 
     
     // Set boss properties
     this.boss.isBoss = true;
     this.boss.health = 1000;
-    this.boss.maxHealth = 500;
+    this.boss.maxHealth = 1000;
     this.boss.moneyDrop = 200;
     
     // Set the specific slow speed for the boss
     this.boss.speed = this.BOSS_SPEED;
     this.boss.setVelocityX(this.boss.speed); // Assuming you define this.BOSS_SPEED in create()
-    this.boss.play('boss1-walk'); 
+    this.boss.play('boss2-walk'); 
     this.boss.setScale(0.5);
     this.boss.setCollideWorldBounds(true); 
 
     // Create and attach health bar (make sure to update the boss's HP display if using this)
-    this.bossHealthBar = this.add.text(bossX, bossY - 100, `TRIỆU ĐÀ: ${this.boss.health}`, {
+    this.bossHealthBar = this.add.text(bossX, bossY - 100, `BẠCH HỔ: ${this.boss.health}`, {
         fontFamily: 'monospace', fontSize: '24px', color: '#ff0000'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(500);
 
@@ -1366,15 +1394,12 @@ if (this.stepSfx) this.stepSfx.destroy();
     performAttack(currentTime) {
     // 1. Set cooldown
     this.nextAttackTime = currentTime + this.attackCooldown;
-    if (this.attackSfx) {
-        this.attackSfx.play();
-    }
     // Check player's facing direction and play the corresponding animation
     if (this.player.facing === 'left') {
         this.player.anims.play('attack-left', true);
     } else if (this.player.facing === 'right') {
         this.player.anims.play('attack-right', true);
-    } 
+    }
     // NOTE: You may want to add 'attack-up' and 'attack-down' here if they exist.
     
     // 3. Define Hitbox Parameters
@@ -1383,13 +1408,18 @@ if (this.stepSfx) this.stepSfx.destroy();
     let hitboxW = 40;
     let hitboxH = 40;
     
+    // Define a rotation variable for the visual effect
+    let visualRotation = 0; // Default to 0 (right/left)
+    
     // 4. Position the Hitbox based on player.facing
     switch (this.player.facing) {
       case 'up':
         hitboxY -= 30;
+        visualRotation = Phaser.Math.DegToRad(-90); // -90 degrees (or 270)
         break;
       case 'down':
         hitboxY += 30;
+        visualRotation = Phaser.Math.DegToRad(90); // 90 degrees
         break;
       case 'left':
         hitboxX -= 30;
@@ -1402,11 +1432,13 @@ if (this.stepSfx) this.stepSfx.destroy();
     
     // --- START NEW VISUAL EFFECT LOGIC ---
     
-     
     // 5. Create the VISIBLE visual effect (replaces the pink rectangle)
     // We'll use a placeholder URL for the asset key 'attack-visual' here.
     const attackVisual = this.add.image(hitboxX, hitboxY, 'attack-visual').setScale(0.8);
     attackVisual.setDepth(1); // Ensure it draws above the player/enemies
+    
+    // 🔥 NEW: Apply the determined rotation to the visual element
+    attackVisual.setRotation(visualRotation);
     
     // 6. Create the INVISIBLE Physics Rectangle for collision
     // This is the functional part that triggers damage, now completely transparent.
@@ -1450,6 +1482,9 @@ handleAttackInput(pointer) {
         // 1. Deduct cost
         this.money -= item.price;
         
+        if (this.buySfx) {
+            this.buySfx.play();
+        }
         // 2. Apply effect
         item.effect(this.player);
 
@@ -1474,8 +1509,11 @@ handleAttackInput(pointer) {
         });
 
     } else {
+        if (this.buyFailSfx) {
+            this.buyFailSfx.play();
+        }
         // Display insufficient funds message
-        const errorText = this.add.text(0, 40, 'Không đủ tiền!', {
+        const errorText = this.add.text(0, 90, 'Không đủ tiền!', {
             fontFamily: 'monospace', fontSize: '24px', color: '#e74c3c'
         }).setOrigin(0.5).setDepth(601);
         this.shopUI.add(errorText);
