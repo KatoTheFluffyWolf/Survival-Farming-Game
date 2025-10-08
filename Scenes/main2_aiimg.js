@@ -402,7 +402,7 @@ drawBaseHealthBar() {
       });
 
       // 5. Player Money Display
-      this.moneyText = this.add.text(0, 120, `Tiền: ${this.money}`, {
+      this.moneyText = this.add.text(0, 120, `Công Trạng: ${this.money}`, {
           fontFamily: 'monospace', fontSize: '20px', color: '#f1c40f'
       }).setOrigin(0.5);
       this.shopUI.add(this.moneyText);
@@ -958,6 +958,11 @@ drawBaseHealthBar() {
     enemy.setVelocity(0, 0); 
     enemy.setVisible(false);
     
+    if (base.health <= 0) {
+        this.triggerGameOver('Điện Thái Hòa đã thất thủ!');
+        return;
+    } 
+    
     // Use a delayedCall of 0 to ensure proper destruction at the end of the frame
     this.time.delayedCall(0, () => {
         if (enemy.active) {
@@ -972,9 +977,6 @@ drawBaseHealthBar() {
 
     this.refreshHUD(); 
     
-    if (base.health <= 0) {
-        this.triggerGameOver('Điện Thái Hòa đã thất thủ!');
-    } 
 }
 
 
@@ -1540,7 +1542,7 @@ handleAttackInput(pointer) {
             this.buyFailSfx.play();
         }
         // Display insufficient funds message
-        const errorText = this.add.text(0, 90, 'Không đủ tiền!', {
+        const errorText = this.add.text(0, 90, 'Không đủ Công Trạng!', {
             fontFamily: 'monospace', fontSize: '24px', color: '#e74c3c'
         }).setOrigin(0.5).setDepth(601);
         this.shopUI.add(errorText);
@@ -1577,7 +1579,7 @@ handleAttackInput(pointer) {
     
     this.isShopping = true; 
     this.shopUI.setVisible(true);
-    this.moneyText.setText(`Tiền: ${this.money}`);
+    this.moneyText.setText(`Công Trạng: ${this.money}`);
     this.updateShopUI(); 
     this.refreshHUD(); 
 }
