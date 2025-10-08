@@ -122,12 +122,16 @@ drawBaseHealthBar() {
       this.load.audio('step',['assets/step.mp3']);
       this.load.audio('heal',['assets/heal.wav']);
       this.load.audio('buy',['assets/buy.wav']);
-      this.load.audio('buy-fail',['assets/buy-fail.wav'])
+      this.load.audio('buy-fail',['assets/buy-fail.wav']);
+      this.load.audio('bgMusic', [
+            'assets/bg-music.mp3'
+        ]);
       this.load.image('citadel', 'assets/Hue_Citadel.png'); 
       this.load.image('banhchung', 'assets/banhchung.png'); 
       this.load.image('banhgiay', 'assets/banhgiay.png'); 
       this.load.image('attack-visual', 'assets/hitting_effect.png');
       this.load.image('longchimlac','assets/longchimlac.png')
+      this.load.image('logo', 'assets/Logo.png');
     }
 
     create() {
@@ -594,6 +598,7 @@ drawBaseHealthBar() {
         fontSize: '16px',
         color: '#ffffff'
       }).setScrollFactor(0);
+      this.add.image(8, GAME_H - 110, 'logo').setOrigin(0).setScale(0.1);
 
       this.refreshHUD();
       // Game Over overlay (hidden at start)
@@ -613,7 +618,25 @@ drawBaseHealthBar() {
         // Remove keyboard listeners created in create()
         this.input.keyboard.removeAllListeners();
       });
-      // sound
+      
+      this.bgMusic = this.sound.add('bgMusic', {
+            volume: 0.4, // Optional: set a lower volume for background music
+            loop: true    // **This is what makes it loop forever**
+        });
+    if (this.sound.locked) {
+            // The audio is currently locked (requires user interaction)
+            // Listen for the 'unlocked' event, which fires after the first user touch/click
+            this.sound.once(Phaser.Sound.Events.UNLOCKED, () => {
+                this.bgMusic.play();
+            });
+
+            // You might want to display a "Tap to Start" message to the player
+            // to indicate they need to interact with the game.
+
+        } else {
+            // Audio context is already unlocked, so play immediately
+            this.bgMusic.play();
+        }
       this.stepSfx = this.sound.add('step', { volume: 0.4 });
       this.enemyHitSfx = this.sound.add('attack-sfx', {volume: 0.4});
       this.healSfx = this.sound.add('heal', {volume: 0.4});
@@ -1379,8 +1402,11 @@ spawnBossRound10() {
         this.hud.setText('');
         this.VictoryText.setVisible(true);
         this.restartText.setVisible(true);
+        
         if (this.stepSfx) this.stepSfx.stop();
-    }
+        if (this.bgMusic) this.bgMusic.stop();
+        if (this.stepSfx) this.stepSfx.destroy();
+        }
     triggerGameOver() {
       this.gameOver = true;
       this.player.setVelocity(0, 0);
@@ -1388,7 +1414,8 @@ spawnBossRound10() {
       this.gameOverText.setVisible(true);
       this.restartText.setVisible(true);
       if (this.stepSfx) this.stepSfx.stop();
-if (this.stepSfx) this.stepSfx.destroy();
+      if (this.bgMusic) this.bgMusic.stop();
+    if (this.stepSfx) this.stepSfx.destroy();
 
     }
     performAttack(currentTime) {
